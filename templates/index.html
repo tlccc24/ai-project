@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>妈妈点菜页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f7f7f7;
+        }
+        h1, h2 {
+            color: #222;
+        }
+        .card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+        .dish-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        label.dish-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 22px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            background: #fff;
+        }
+        input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+        }
+        input[type="text"] {
+            width: 100%;
+            font-size: 22px;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        button {
+            font-size: 22px;
+            padding: 14px 22px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        .submit-btn {
+            background: #1677ff;
+            color: white;
+        }
+        .reset-btn {
+            background: #e54d42;
+            color: white;
+        }
+        ul {
+            font-size: 22px;
+            line-height: 1.8;
+        }
+        .hint {
+            color: #666;
+            font-size: 18px;
+        }
+        .success {
+            color: #1677ff;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>妈妈点菜页面</h1>
+
+    <div class="card">
+        <h2>请选择这顿要做的菜</h2>
+        <form action="/order" method="post">
+            <div class="dish-list">
+                {% for dish in dishes %}
+                <label class="dish-item">
+                    <input type="checkbox" name="dishes" value="{{ dish['name_zh'] }}">
+                    <span>{{ dish['name_zh'] }}</span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <div style="margin-top: 20px;">
+                <h2>自定义菜名</h2>
+                <input type="text" name="custom_dish" placeholder="例如：番茄炒蛋 / 蒸鱼 / 排骨汤">
+                <p class="hint">输入新菜名后提交，系统会自动记住，下次还能继续选。</p>
+            </div>
+
+            <div class="btn-row">
+                <button class="submit-btn" type="submit">提交点菜</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>重新开始</h2>
+        <form action="/reset" method="post">
+            <button class="reset-btn" type="submit">Reset / 重新下单</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>当前订单（中文）</h2>
+        {% if current_order %}
+            <ul>
+                {% for dish in current_order %}
+                <li>{{ dish['dish_name_zh'] }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>还没有点菜</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2>菲佣查看页面</h2>
+        <p><a href="/dashboard" target="_blank">打开 Maid Dashboard</a></p>
+    </div>
+</body>
+</html>

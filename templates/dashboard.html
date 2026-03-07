@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="5">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maid Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f7f7f7;
+        }
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+        h1, h2 {
+            color: #222;
+        }
+        ul {
+            font-size: 28px;
+            line-height: 1.9;
+            padding-left: 28px;
+        }
+        .empty {
+            font-size: 28px;
+            color: #666;
+        }
+        .tip {
+            color: #666;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Maid Dashboard</h1>
+
+    <div class="card">
+        <h2>Current Order</h2>
+
+        {% if current_order %}
+            <ul>
+                {% for dish in current_order %}
+                <li>{{ dish['dish_name_en'] }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty">No order yet</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <p class="tip">This page refreshes every 5 seconds.</p>
+    </div>
+</body>
+</html>
