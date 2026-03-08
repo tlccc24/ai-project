@@ -3,12 +3,15 @@ import sqlite3
 from pathlib import Path
 from openai import OpenAI
 import os
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
 DB_PATH = Path(os.getenv("DB_PATH", "orders.db"))
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+APP_TIMEZONE = ZoneInfo("Asia/Hong_Kong")
 
 TRANSLATIONS = {
     "白饭": "Rice",
@@ -59,6 +62,14 @@ MEAL_TYPE_EN = {
     "午餐": "Lunch",
     "晚餐": "Dinner",
 }
+
+
+def now_local():
+    return datetime.now(APP_TIMEZONE)
+
+
+def today_local():
+    return now_local().date()
 
 
 def get_conn():
@@ -159,7 +170,7 @@ def init_db():
 
 
 def cleanup_past_plans():
-    today_str = date.today().isoformat()
+    today_str = today_local().isoformat()
     conn = get_conn()
     conn.execute("DELETE FROM planned_orders WHERE meal_date < ?", (today_str,))
     conn.commit()
@@ -287,7 +298,7 @@ def save_meal(meal_date: str, meal_type_zh: str, selected_dishes_zh: list[str], 
     except ValueError:
         return
 
-    if chosen_date < date.today():
+    if chosen_date < today_local():
         return
 
     meal_type_en = MEAL_TYPE_EN[meal_type_zh]
@@ -340,7 +351,7 @@ def index():
     else:
         filtered_dishes = dishes
 
-    today = date.today()
+    today = today_local()
     tomorrow = today + timedelta(days=1)
     day_after = today + timedelta(days=2)
 
@@ -384,7 +395,7 @@ def plans():
     cleanup_past_plans()
 
     dishes = get_all_dishes()
-    today = date.today().isoformat()
+    today = today_local().isoformat()
     future_rows = get_planned_orders_from(today)
     grouped_plans = group_planned_orders(future_rows, lang="zh")
 
@@ -461,7 +472,7 @@ def dashboard():
     if lang not in ["zh", "en"]:
         lang = "en"
 
-    today = date.today()
+    today = today_local()
     today_rows = get_planned_orders_between(today.isoformat(), today.isoformat())
     today_meals = build_day_meals_map(today_rows, today.isoformat(), lang=lang)
 
