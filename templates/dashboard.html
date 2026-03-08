@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ 'zh-CN' if lang == 'zh' else 'en' }}">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="refresh" content="5">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maid Dashboard</title>
+    <title>{% if lang == 'zh' %}佣人看单页面{% else %}Maid Dashboard{% endif %}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 760px;
+            max-width: 920px;
             margin: 0 auto;
             padding: 20px;
             background: #f7f7f7;
@@ -20,43 +20,139 @@
             margin-bottom: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.06);
         }
-        h1, h2 {
+        h1, h2, h3 {
             color: #222;
         }
         ul {
-            font-size: 28px;
-            line-height: 1.9;
+            font-size: 24px;
+            line-height: 1.8;
             padding-left: 28px;
         }
         .empty {
-            font-size: 28px;
+            font-size: 22px;
             color: #666;
         }
         .tip {
             color: #666;
             font-size: 18px;
         }
+        .lang-switch a {
+            margin-right: 12px;
+            font-size: 18px;
+        }
+        .date-block {
+            margin-bottom: 18px;
+            padding: 14px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+        }
+        .meal-block {
+            margin-top: 10px;
+        }
+        .meal-card {
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 <body>
-    <h1>Maid Dashboard</h1>
+    {% if lang == 'zh' %}
+        <h1>佣人看单页面</h1>
+    {% else %}
+        <h1>Maid Dashboard</h1>
+    {% endif %}
+
+    <div class="card lang-switch">
+        <a href="/dashboard?lang=en">English</a>
+        <a href="/dashboard?lang=zh">中文</a>
+    </div>
 
     <div class="card">
-        <h2>Current Order</h2>
-
-        {% if current_order %}
-            <ul>
-                {% for dish in current_order %}
-                <li>{{ dish['dish_name_en'] }}</li>
-                {% endfor %}
-            </ul>
+        {% if lang == 'zh' %}
+            <h2>今天菜单（{{ today_str }}）</h2>
         {% else %}
-            <p class="empty">No order yet</p>
+            <h2>Today ({{ today_str }})</h2>
+        {% endif %}
+
+        {% for meal_type_zh in meal_types %}
+            {% set meal_label = meal_type_zh if lang == 'zh' else meal_type_en[meal_type_zh] %}
+            <div class="meal-card">
+                <h3>{{ meal_label }}</h3>
+                {% if today_meals[meal_label]["meal_time"] %}
+                    {% if lang == 'zh' %}
+                        <p><strong>开饭时间：</strong>{{ today_meals[meal_label]["meal_time"] }}</p>
+                    {% else %}
+                        <p><strong>Meal time:</strong> {{ today_meals[meal_label]["meal_time"] }}</p>
+                    {% endif %}
+                {% endif %}
+
+                {% if today_meals[meal_label]["dishes"] %}
+                    <ul>
+                        {% for dish in today_meals[meal_label]["dishes"] %}
+                        <li>{{ dish }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    {% if lang == 'zh' %}
+                        <p class="empty">未点菜</p>
+                    {% else %}
+                        <p class="empty">No dishes planned</p>
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        {% if lang == 'zh' %}
+            <h2>未来 7 天菜单</h2>
+        {% else %}
+            <h2>Next 7 Days</h2>
+        {% endif %}
+
+        {% if grouped_plans %}
+            {% for meal_date, meals in grouped_plans.items() %}
+            <div class="date-block">
+                <h3>{{ meal_date }}</h3>
+
+                {% for meal_name, meal_data in meals.items() %}
+                <div class="meal-block">
+                    <strong>{{ meal_name }}</strong>
+
+                    {% if meal_data["meal_time"] %}
+                        {% if lang == 'zh' %}
+                            <p>开饭时间：{{ meal_data["meal_time"] }}</p>
+                        {% else %}
+                            <p>Meal time: {{ meal_data["meal_time"] }}</p>
+                        {% endif %}
+                    {% endif %}
+
+                    <ul>
+                        {% for dish in meal_data["dishes"] %}
+                        <li>{{ dish }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        {% else %}
+            {% if lang == 'zh' %}
+                <p class="empty">未来 7 天还没有菜单</p>
+            {% else %}
+                <p class="empty">No plans for the next 7 days</p>
+            {% endif %}
         {% endif %}
     </div>
 
     <div class="card">
-        <p class="tip">This page refreshes every 5 seconds.</p>
+        {% if lang == 'zh' %}
+            <p class="tip">本页面每 5 秒自动刷新一次。</p>
+        {% else %}
+            <p class="tip">This page refreshes every 5 seconds.</p>
+        {% endif %}
     </div>
 </body>
 </html>

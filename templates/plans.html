@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>未来菜单</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f7f7f7;
+        }
+        h1, h2, h3 {
+            color: #222;
+        }
+        .card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+        .dish-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        label.dish-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 22px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            background: #fff;
+        }
+        input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+        }
+        input[type="text"], input[type="date"], input[type="time"], select {
+            width: 100%;
+            font-size: 20px;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            margin-top: 8px;
+        }
+        button {
+            font-size: 18px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+        .submit-btn {
+            background: #1677ff;
+            color: white;
+        }
+        .delete-btn {
+            background: #e54d42;
+            color: white;
+        }
+        .hint {
+            color: #666;
+            font-size: 16px;
+        }
+        .date-block {
+            margin-bottom: 18px;
+            padding: 14px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+        }
+        .meal-block {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px dashed #ccc;
+            border-radius: 10px;
+        }
+        .top-links a {
+            margin-right: 16px;
+            font-size: 18px;
+        }
+        ul {
+            font-size: 20px;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <h1>未来菜单</h1>
+
+    <div class="card top-links">
+        <a href="/">返回首页</a>
+        <a href="/dashboard?lang=zh" target="_blank">佣人页面（中文）</a>
+        <a href="/dashboard?lang=en" target="_blank">佣人页面（英文）</a>
+    </div>
+
+    <div class="card">
+        <h2>安排未来菜单</h2>
+        <form action="/plan_order" method="post">
+            <label>日期</label>
+            <input type="date" name="meal_date" value="{{ default_plan_date }}" min="{{ default_plan_date }}" required>
+
+            <label style="margin-top:16px; display:block;">餐别</label>
+            <select name="meal_type" required>
+                {% for meal_type in meal_types %}
+                <option value="{{ meal_type }}">{{ meal_type }}</option>
+                {% endfor %}
+            </select>
+
+            <label style="margin-top:16px; display:block;">开饭时间（可不选）</label>
+            <input type="time" name="meal_time">
+            <p class="hint">如果不选时间，佣人页面不会显示开饭时间。</p>
+
+            <div style="margin-top: 20px;">
+                <h2>选择菜品</h2>
+                <div class="dish-list">
+                    {% for dish in dishes %}
+                    <label class="dish-item">
+                        <input type="checkbox" name="planned_dishes" value="{{ dish['name_zh'] }}">
+                        <span>{{ dish['name_zh'] }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <h2>自定义菜名</h2>
+                <input type="text" name="planned_custom_dish" placeholder="例如：蒸鱼/青菜汤">
+                <p class="hint">可一次输入多个菜，用 /、逗号、顿号或换行分开。</p>
+            </div>
+
+            <div style="margin-top: 18px;">
+                <button class="submit-btn" type="submit">保存这一天这顿</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card" id="plans-list">
+        <h2>已安排的未来菜单</h2>
+
+        {% if grouped_plans %}
+            {% for meal_date, meals in grouped_plans.items() %}
+            <div class="date-block">
+                <h3>{{ meal_date }}</h3>
+
+                {% for meal_name, meal_data in meals.items() %}
+                <div class="meal-block">
+                    <strong>{{ meal_name }}</strong>
+                    {% if meal_data["meal_time"] %}
+                        <p>开饭时间：{{ meal_data["meal_time"] }}</p>
+                    {% endif %}
+                    <ul>
+                        {% for dish in meal_data["dishes"] %}
+                        <li>{{ dish }}</li>
+                        {% endfor %}
+                    </ul>
+
+                    <form action="/delete_plan" method="post" onsubmit="return confirm('确定删除这一天这顿吗？');">
+                        <input type="hidden" name="meal_date" value="{{ meal_date }}">
+                        <input type="hidden" name="meal_type_zh" value="{{ meal_name }}">
+                        <button class="delete-btn" type="submit">删除这一天这顿</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>还没有安排未来菜单。</p>
+        {% endif %}
+    </div>
+</body>
+</html>
