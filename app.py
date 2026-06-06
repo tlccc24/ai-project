@@ -433,6 +433,52 @@ def save_meal(meal_date: str, meal_type_zh: str, selected_dishes_zh: list[str], 
     conn.close()
 
 
+def append_dishes_to_meal(meal_date: str, meal_type_zh: str, dishes_zh: list[str], meal_time: str = ""):
+    """Add dishes to a meal WITHOUT removing what's already there (skip duplicates).
+
+    Used for the AI 'add one by one' flow so each tap accumulates instead of
+    overwriting the meal.
+    """
+    if meal_type_zh not in MEAL_TYPES:
+        return
+    try:
+        chosen_date = datetime.strptime(meal_date, "%Y-%m-%d").date()
+    except ValueError:
+        return
+    if chosen_date < today_local():
+        return
+
+    meal_type_en = MEAL_TYPE_EN[meal_type_zh]
+    meal_time = (meal_time or "").strip()
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    existing = {
+        row["dish_name_zh"]
+        for row in cur.execute(
+            "SELECT dish_name_zh FROM planned_orders WHERE meal_date = ? AND meal_type_zh = ?",
+            (meal_date, meal_type_zh),
+        )
+    }
+
+    for dish_zh in dishes_zh:
+        dish_zh = dish_zh.strip()
+        if not dish_zh or dish_zh in existing:
+            continue
+        dish_en = upsert_dish(cur, dish_zh)
+        cur.execute("""
+            INSERT INTO planned_orders
+            (meal_date, meal_type_zh, meal_type_en, dish_name_zh, dish_name_en, meal_time)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (meal_date, meal_type_zh, meal_type_en, dish_zh, dish_en, meal_time or None))
+        cur.execute("UPDATE dishes SET order_count = order_count + 1 WHERE name_zh = ?", (dish_zh,))
+        existing.add(dish_zh)
+
+    conn.commit()
+    conn.close()
+
+
 # --- Fridge data helpers ---
 
 def get_fridge_items():
@@ -570,27 +616,31 @@ def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
 
     out_lang = "Chinese (Simplified)" if lang == "zh" else "English"
     stock_rule = (
-        "Build the dishes mainly from what is in stock; staples like rice/oil/salt may be assumed."
+        "Prefer dishes that can be made from what is in stock; staples like rice/oil/salt may be assumed."
         if has_stock else
         "The fridge stock is unknown, so suggest easy everyday dishes that fit the family's tastes."
     )
     prompt = (
-        "You are a thoughtful home cooking assistant for a Chinese family. "
-        "Suggest 2-3 simple, realistic home-style meal combinations for the given meal. "
+        "You are a practical home cooking assistant for a Chinese family. "
+        "Recommend 5 to 6 INDIVIDUAL Chinese home-style dishes for the given meal. "
+        "Each must be a real, common dish that people actually cook and order by its usual name "
+        "(for example: 番茄炒蛋, 青椒土豆丝, 红烧排骨, 蒜蓉西兰花, 清炒时蔬, 紫菜蛋花汤, 麻婆豆腐). "
+        "Do NOT invent unusual ingredient mash-ups, and do NOT bundle them into a fixed set menu — "
+        "list each dish on its own so the user can pick a few. "
         f"{stock_rule} "
-        "Lean toward the family's favorite dishes/flavors, but keep each combo reasonably "
-        "balanced and healthy (include a vegetable, avoid making every dish fried or heavy). "
-        "Avoid repeating dishes that are already on the menu soon. "
-        "List any common ingredients worth buying for your suggestions (especially if low or out of stock).\n\n"
+        "Lean toward the family's favorite flavors, and keep the overall list balanced "
+        "(a mix of meat and vegetable dishes, and a soup if it fits — not all fried or heavy). "
+        "Avoid dishes that are already on the menu soon. "
+        "Also list a few common ingredients worth buying (especially if low or out of stock).\n\n"
         f"Meal: {MEAL_TYPE_EN[meal_type_zh]} ({meal_type_zh})\n"
         f"In stock (有): {', '.join(have) or 'unknown'}\n"
         f"Running low (不多): {', '.join(low) or 'none'}\n"
         f"Family favorites (most ordered): {', '.join(favorites) or 'none yet'}\n"
         f"Already on the menu soon (avoid repeating): {', '.join(recent) or 'none'}\n\n"
         f"Write all dish names, reasons and shopping items in {out_lang}. "
-        "Keep each reason to a short phrase.\n"
+        "Keep each reason to a few words.\n"
         "Reply with ONLY valid JSON in this exact shape, no markdown:\n"
-        '{"suggestions": [{"dishes": ["dish1", "dish2"], "reason": "short reason"}], '
+        '{"dishes": [{"name": "dish name", "reason": "short reason"}], '
         '"to_buy": ["item1", "item2"]}'
     )
 
@@ -600,16 +650,19 @@ def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
     except Exception:
         return {"error": "ai_failed"}
 
-    if not data or "suggestions" not in data:
+    if not data or "dishes" not in data:
         return {"error": "ai_failed"}
 
-    suggestions = []
-    for s in data.get("suggestions", []):
-        dishes = [d for d in s.get("dishes", []) if isinstance(d, str) and d.strip()]
-        if dishes:
-            suggestions.append({"dishes": dishes, "reason": s.get("reason", "")})
+    dishes = []
+    seen = set()
+    for d in data.get("dishes", []):
+        name = (d.get("name") if isinstance(d, dict) else str(d)).strip()
+        if name and name not in seen:
+            seen.add(name)
+            reason = d.get("reason", "") if isinstance(d, dict) else ""
+            dishes.append({"name": name, "reason": reason})
 
-    return {"suggestions": suggestions, "to_buy": data.get("to_buy", []), "note": note}
+    return {"dishes": dishes, "to_buy": data.get("to_buy", []), "note": note}
 
 
 def _normalize_lang(raw):
@@ -699,7 +752,9 @@ def recommend_to_plan():
     meal_type_zh = request.form.get("meal_type", "").strip()
     dishes_raw = request.form.get("dishes", "").strip()
     selected = split_custom_dishes(dishes_raw)
-    save_meal(today_local().isoformat(), meal_type_zh, selected, "", "")
+    append_dishes_to_meal(today_local().isoformat(), meal_type_zh, selected)
+    if _is_xhr():
+        return ("", 204)
     return redirect(url_for("order") + "#today-menu")
 
 

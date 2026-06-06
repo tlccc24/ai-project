@@ -260,7 +260,18 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 }
 .suggestion .dishes { font-size: 15.5px; font-weight: 600; margin: 0 0 6px; }
 .suggestion .dishes span { margin-right: 12px; }
-.buy-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-weight: 700; font-size: 14px; }
+/* AI recommended dishes — one row per dish, each individually addable */
+.rec-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+.rec-row:last-of-type { border-bottom: none; }
+.rec-info { min-width: 0; }
+.rec-name { font-weight: 650; font-size: 16px; }
+.rec-reason { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.btn-success.added { background: #e8f6ed; color: #1f7a40; box-shadow: none; }
+
+.buy-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-weight: 700; font-size: 14px; }
 .buy-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 .alert {
     background: var(--low-tint); border: 1px solid #f3dca8; color: #8a5408;

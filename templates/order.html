@@ -58,21 +58,22 @@
             </form>
 
             {% if recommendation %}
-                {% if recommendation.get('error') == 'empty_fridge' %}
-                    <p class="alert">冰箱里还没有标记“有”或“不多”的食材，先去更新一下冰箱再推荐。</p>
-                {% elif recommendation.get('error') %}
+                {% if recommendation.get('error') %}
                     <p class="alert">AI 暂时无法连接，请稍后再试。</p>
-                {% elif recommendation.get('suggestions') %}
+                {% elif recommendation.get('dishes') %}
                     <div style="margin-top:14px;">
-                        {% if recommendation.get('note') %}<p class="hint" style="margin-bottom:10px;">{{ recommendation['note'] }}</p>{% endif %}
-                        {% for s in recommendation['suggestions'] %}
-                        <div class="suggestion">
-                            <p class="dishes">{% for d in s['dishes'] %}<span>{{ d }}</span>{% endfor %}</p>
-                            {% if s['reason'] %}<p class="hint">{{ s['reason'] }}</p>{% endif %}
-                            <form action="/recommend_to_plan" method="post" style="margin-top:10px;">
+                        {% if recommendation.get('note') %}<p class="hint" style="margin-bottom:8px;">{{ recommendation['note'] }}</p>{% endif %}
+                        <p class="section-hint">点「＋ 加」把想吃的菜逐个加到今天的{{ rec_meal_type }}：</p>
+                        {% for d in recommendation['dishes'] %}
+                        <div class="rec-row">
+                            <div class="rec-info">
+                                <span class="rec-name">{{ d['name'] }}</span>
+                                {% if d['reason'] %}<span class="rec-reason">{{ d['reason'] }}</span>{% endif %}
+                            </div>
+                            <form class="js-add" action="/recommend_to_plan" method="post">
                                 <input type="hidden" name="meal_type" value="{{ rec_meal_type }}">
-                                <input type="hidden" name="dishes" value="{{ s['dishes'] | join(',') }}">
-                                <button class="btn-success btn-sm" type="submit">{{ ic.icon("plus", 15) }} 加入今天（{{ rec_meal_type }}）</button>
+                                <input type="hidden" name="dishes" value="{{ d['name'] }}">
+                                <button class="btn-success btn-sm" type="submit">{{ ic.icon("plus", 15) }} 加</button>
                             </form>
                         </div>
                         {% endfor %}
@@ -169,5 +170,6 @@
 
     </div>
     <script src="{{ url_for('static', filename='filter.js') }}"></script>
+    <script src="{{ url_for('static', filename='order.js') }}"></script>
 </body>
 </html>
