@@ -187,8 +187,8 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 /* dish list with per-dish recipe link (helper dashboard) */
 .dish-lines { list-style: none; padding: 0; margin: 8px 0 0; }
 .dish-lines li {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 9px 0; border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap; padding: 9px 0; border-top: 1px solid var(--line);
 }
 .dish-lines li:first-child { border-top: none; }
 .dish-lines .d-name { font-size: 16.5px; }
@@ -321,7 +321,7 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 .shop-item:first-of-type { border-top: none; }
 
 /* per-dish actions + reference thumbnail (helper dashboard) */
-.d-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.d-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .ref-thumb { display: inline-block; line-height: 0; }
 .ref-thumb img { width: 36px; height: 36px; object-fit: cover; border-radius: 8px; display: block; border: 1px solid var(--line-strong); }
 
