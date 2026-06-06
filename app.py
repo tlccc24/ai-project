@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from werkzeug.utils import secure_filename
 import sqlite3
 import json
 from pathlib import Path
@@ -18,6 +19,9 @@ except ImportError:
 app = Flask(__name__)
 
 DB_PATH = Path(os.getenv("DB_PATH", "orders.db"))
+# Uploaded reference photos live next to the DB (on Render: the persistent disk).
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(DB_PATH.parent / "uploads")))
+ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic"}
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 APP_TIMEZONE = ZoneInfo("Asia/Hong_Kong")
@@ -232,9 +236,19 @@ def init_db():
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS shopping_list (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     ensure_column_exists(conn, "planned_orders", "meal_time", "TEXT")
     ensure_column_exists(conn, "dishes", "order_count", "INTEGER DEFAULT 0")
     ensure_column_exists(conn, "dishes", "category", "TEXT DEFAULT '其他'")
+    ensure_column_exists(conn, "dishes", "ref_link", "TEXT")
+    ensure_column_exists(conn, "dishes", "ref_image", "TEXT")
 
     for dish_zh in PRESET_DISHES_ZH:
         dish_en = translate_to_english(dish_zh)
@@ -253,6 +267,8 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def cleanup_past_plans():
@@ -326,10 +342,27 @@ def upsert_dish(cur, dish_zh: str) -> str:
 def get_all_dishes():
     conn = get_conn()
     rows = conn.execute(
-        "SELECT id, name_zh, name_en, category FROM dishes ORDER BY id ASC"
+        "SELECT id, name_zh, name_en, category, ref_link, ref_image FROM dishes ORDER BY id ASC"
     ).fetchall()
     conn.close()
     return rows
+
+
+def get_dish_ref_map():
+    """Map dish name (zh and en) -> {link, image} for dishes that have a reference."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT name_zh, name_en, ref_link, ref_image FROM dishes "
+        "WHERE ref_link IS NOT NULL OR ref_image IS NOT NULL"
+    ).fetchall()
+    conn.close()
+    ref_map = {}
+    for r in rows:
+        ref = {"link": r["ref_link"], "image": r["ref_image"]}
+        ref_map[r["name_zh"]] = ref
+        if r["name_en"]:
+            ref_map[r["name_en"]] = ref
+    return ref_map
 
 
 def build_dish_groups(dishes):
@@ -614,6 +647,83 @@ def get_favorite_dishes(limit: int = 8):
     return [row["name_zh"] for row in rows]
 
 
+# --- Shopping list ---
+
+def get_shopping_list():
+    conn = get_conn()
+    rows = conn.execute("SELECT id, item FROM shopping_list ORDER BY id ASC").fetchall()
+    conn.close()
+    return rows
+
+
+def add_shopping_items(raw_text: str):
+    items = split_custom_dishes(raw_text)
+    if not items:
+        return
+    conn = get_conn()
+    for item in items:
+        conn.execute("INSERT OR IGNORE INTO shopping_list (item) VALUES (?)", (item,))
+    conn.commit()
+    conn.close()
+
+
+def delete_shopping_item(item_id: str):
+    conn = get_conn()
+    conn.execute("DELETE FROM shopping_list WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_upcoming_dish_names(days: int = 7):
+    start = today_local().isoformat()
+    end = (today_local() + timedelta(days=days)).isoformat()
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT DISTINCT dish_name_zh FROM planned_orders WHERE meal_date >= ? AND meal_date <= ?",
+        (start, end),
+    ).fetchall()
+    conn.close()
+    return [row["dish_name_zh"] for row in rows]
+
+
+def generate_shopping_from_menu():
+    """Ask AI which ingredients the planned dishes need that the fridge lacks,
+    and add them to the shopping list. Returns True if anything was added."""
+    dishes = get_upcoming_dish_names()
+    if not dishes:
+        return False
+
+    fridge_rows = get_fridge_items()
+    have = [r["name_zh"] for r in fridge_rows if r["status"] == "有"]
+
+    prompt = (
+        "You are helping a Chinese family plan grocery shopping. "
+        "Given the dishes they plan to cook and what the fridge already has, "
+        "list the common ingredients they still need to BUY (skip things already in the fridge "
+        "and basic staples like water). Keep names short and in Simplified Chinese.\n\n"
+        f"Planned dishes: {', '.join(dishes)}\n"
+        f"Already in fridge: {', '.join(have) or 'nothing marked'}\n\n"
+        'Reply with ONLY valid JSON: {"to_buy": ["item1", "item2"]}'
+    )
+    try:
+        response = client.responses.create(model="gpt-4o-mini", input=prompt)
+        data = _parse_ai_json(response.output_text)
+    except Exception:
+        return False
+
+    if not data:
+        return False
+    items = [str(x).strip() for x in data.get("to_buy", []) if str(x).strip()]
+    if not items:
+        return False
+    conn = get_conn()
+    for item in items:
+        conn.execute("INSERT OR IGNORE INTO shopping_list (item) VALUES (?)", (item,))
+    conn.commit()
+    conn.close()
+    return True
+
+
 def _parse_ai_json(raw_text: str):
     """Strip markdown fences and parse the model's JSON reply."""
     text = (raw_text or "").strip()
@@ -668,6 +778,8 @@ def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
         "Recommend 5 to 6 INDIVIDUAL Chinese home-style dishes for the given meal. "
         "Each must be a real, common dish that people actually cook and order by its usual name "
         "(for example: 番茄炒蛋, 青椒土豆丝, 红烧排骨, 蒜蓉西兰花, 清炒时蔬, 紫菜蛋花汤, 麻婆豆腐). "
+        "Keep it plain, everyday family home cooking — nothing fancy, gourmet, or restaurant-style, "
+        "no rare ingredients or complicated techniques. "
         "Do NOT invent unusual ingredient mash-ups, and do NOT bundle them into a fixed set menu — "
         "list each dish on its own so the user can pick a few. "
         f"{stock_rule} "
@@ -761,6 +873,7 @@ def render_order(recommendation=None, rec_meal_type=""):
         rec_meal_type=rec_meal_type,
         fridge_have=fridge_have,
         fridge_low=fridge_low,
+        shopping_list=get_shopping_list(),
     )
 
 
@@ -799,6 +912,32 @@ def recommend_to_plan():
     if _is_xhr():
         return ("", 204)
     return redirect(url_for("order") + "#today-menu")
+
+
+@app.route("/shopping_add", methods=["POST"])
+def shopping_add():
+    add_shopping_items(request.form.get("item", "").strip())
+    return redirect(url_for("order") + "#shopping")
+
+
+@app.route("/shopping_generate", methods=["POST"])
+def shopping_generate():
+    generate_shopping_from_menu()
+    return redirect(url_for("order") + "#shopping")
+
+
+@app.route("/shopping_done", methods=["POST"])
+def shopping_done():
+    item_id = request.form.get("item_id", "").strip()
+    if item_id:
+        delete_shopping_item(item_id)
+    if _is_xhr():
+        return ("", 204)
+    where = request.form.get("from", "order")
+    if where == "cook":
+        lang = _normalize_lang(request.form.get("lang"))
+        return redirect(url_for("dashboard", lang=lang) + "#shopping")
+    return redirect(url_for("order") + "#shopping")
 
 
 @app.route("/plans", methods=["GET"])
@@ -871,7 +1010,39 @@ def set_dish_category():
         conn.execute("UPDATE dishes SET category = ? WHERE id = ?", (category, dish_id))
         conn.commit()
         conn.close()
+    if _is_xhr():
+        return ("", 204)
     return redirect(url_for("dishes_page", search=search_query) + "#manage")
+
+
+@app.route("/set_dish_ref", methods=["POST"])
+def set_dish_ref():
+    dish_id = request.form.get("dish_id", "").strip()
+    ref_link = request.form.get("ref_link", "").strip()
+    if not dish_id:
+        return redirect(url_for("dishes_page") + "#manage")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE dishes SET ref_link = ? WHERE id = ?", (ref_link or None, dish_id))
+
+    file = request.files.get("image")
+    if file and file.filename:
+        ext = os.path.splitext(secure_filename(file.filename))[1].lower()
+        if ext in ALLOWED_IMAGE_EXT:
+            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            fname = f"dish_{dish_id}{ext}"
+            file.save(str(UPLOAD_DIR / fname))
+            cur.execute("UPDATE dishes SET ref_image = ? WHERE id = ?", (fname, dish_id))
+
+    conn.commit()
+    conn.close()
+    return redirect(url_for("dishes_page") + "#manage")
+
+
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(str(UPLOAD_DIR), filename)
 
 
 @app.route("/auto_categorize_dishes", methods=["POST"])
@@ -913,6 +1084,8 @@ def delete_dish():
 
         conn.close()
 
+    if _is_xhr():
+        return ("", 204)
     return redirect(url_for("dishes_page", search=search_query) + "#manage")
 
 
@@ -941,6 +1114,8 @@ def dashboard():
         grouped_plans=grouped_plans,
         meal_types=MEAL_TYPES,
         meal_type_en=MEAL_TYPE_EN,
+        shopping_list=get_shopping_list(),
+        dish_ref_map=get_dish_ref_map(),
     )
 
 

@@ -11,3 +11,6 @@ __pycache__/
 orders.db
 test_fridge.db
 *.db.bak
+
+# Uploaded reference photos (stored on the persistent disk at runtime)
+uploads/

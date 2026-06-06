@@ -226,6 +226,7 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 
 /* category dropdown (manage dishes) */
 .cat-select { font-size: 13px; padding: 8px 28px 8px 10px; border-radius: 999px; width: auto; }
+.cat-select.saved { border-color: var(--have); box-shadow: 0 0 0 3px var(--have-tint); }
 
 /* ---------- Category heading (prominent) ---------- */
 .cat-title {
@@ -294,11 +295,35 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 
 /* ---------- Manage dishes ---------- */
 .delete-item {
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    display: flex; flex-direction: column; gap: 8px;
     border: 1px solid var(--line-strong); border-radius: var(--radius-xs);
     padding: 12px 13px; margin-bottom: 9px;
 }
 .delete-item .en { color: var(--muted); font-size: 13px; }
+.di-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.di-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+
+/* reference editor (link + photo) */
+.ref-edit > summary {
+    cursor: pointer; color: var(--accent-ink); font-size: 13px; font-weight: 600;
+    list-style: none; display: inline-flex; align-items: center; gap: 5px;
+}
+.ref-edit > summary::-webkit-details-marker { display: none; }
+.ref-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.ref-form input[type="text"] { flex: 1 1 100%; }
+.ref-form input[type="file"] { font-size: 13px; flex: 1 1 auto; }
+
+/* shopping list */
+.shop-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 0; border-top: 1px solid var(--line); font-size: 16.5px;
+}
+.shop-item:first-of-type { border-top: none; }
+
+/* per-dish actions + reference thumbnail (helper dashboard) */
+.d-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.ref-thumb { display: inline-block; line-height: 0; }
+.ref-thumb img { width: 36px; height: 36px; object-fit: cover; border-radius: 8px; display: block; border: 1px solid var(--line-strong); }
 
 /* ---------- Landing ---------- */
 .landing { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; padding: 24px 16px; }

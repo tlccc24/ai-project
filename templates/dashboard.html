@@ -26,6 +26,23 @@
 
     <div class="container">
 
+        {% if shopping_list %}
+        <div class="card" id="shopping">
+            <div class="card-head">{{ ic.icon("cart", 20) }}<h2>{% if lang == 'zh' %}要买的东西{% else %}Shopping{% endif %}</h2></div>
+            {% for s in shopping_list %}
+            <div class="shop-item">
+                <span>{{ s['item'] }}</span>
+                <form class="js-shop-done" action="/shopping_done" method="post">
+                    <input type="hidden" name="item_id" value="{{ s['id'] }}">
+                    <input type="hidden" name="from" value="cook">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+                    <button class="btn-success btn-sm" type="submit">{{ ic.icon("check", 14) }} {% if lang == 'zh' %}已买{% else %}Bought{% endif %}</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="card">
             <div class="card-head">{{ ic.icon("bowl", 20) }}<h2>{% if lang == 'zh' %}今天（{{ today_str }}）{% else %}Today ({{ today_str }}){% endif %}</h2></div>
             {% for meal_type_zh in meal_types %}
@@ -42,10 +59,19 @@
                                 {% for dish in today_meals[meal_label]["dishes"] %}
                                 <li>
                                     <span class="d-name">{{ dish }}</span>
-                                    <a class="recipe-link" target="_blank" rel="noopener"
-                                       href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
-                                       {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
-                                    </a>
+                                    <span class="d-actions">
+                                        {% set ref = dish_ref_map.get(dish) %}
+                                        {% if ref and ref['image'] %}
+                                        <a class="ref-thumb" target="_blank" rel="noopener" href="/uploads/{{ ref['image'] }}"><img src="/uploads/{{ ref['image'] }}" alt="参考图"></a>
+                                        {% endif %}
+                                        {% if ref and ref['link'] %}
+                                        <a class="recipe-link" target="_blank" rel="noopener" href="{{ ref['link'] }}">{{ ic.icon('arrow-right', 13) }} {% if lang == 'zh' %}参考{% else %}Ref{% endif %}</a>
+                                        {% endif %}
+                                        <a class="recipe-link" target="_blank" rel="noopener"
+                                           href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
+                                           {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
+                                        </a>
+                                    </span>
                                 </li>
                                 {% endfor %}
                             </ul>
@@ -73,10 +99,19 @@
                                 {% for dish in meal_data["dishes"] %}
                                 <li>
                                     <span class="d-name">{{ dish }}</span>
-                                    <a class="recipe-link" target="_blank" rel="noopener"
-                                       href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
-                                       {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
-                                    </a>
+                                    <span class="d-actions">
+                                        {% set ref = dish_ref_map.get(dish) %}
+                                        {% if ref and ref['image'] %}
+                                        <a class="ref-thumb" target="_blank" rel="noopener" href="/uploads/{{ ref['image'] }}"><img src="/uploads/{{ ref['image'] }}" alt="参考图"></a>
+                                        {% endif %}
+                                        {% if ref and ref['link'] %}
+                                        <a class="recipe-link" target="_blank" rel="noopener" href="{{ ref['link'] }}">{{ ic.icon('arrow-right', 13) }} {% if lang == 'zh' %}参考{% else %}Ref{% endif %}</a>
+                                        {% endif %}
+                                        <a class="recipe-link" target="_blank" rel="noopener"
+                                           href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
+                                           {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
+                                        </a>
+                                    </span>
                                 </li>
                                 {% endfor %}
                             </ul>
@@ -93,5 +128,6 @@
         <p class="landing-tip">{% if lang == 'zh' %}本页面每 15 秒自动刷新{% else %}This page refreshes every 15 seconds{% endif %}</p>
 
     </div>
+    <script src="{{ url_for('static', filename='shopping.js') }}"></script>
 </body>
 </html>

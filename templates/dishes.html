@@ -44,24 +44,38 @@
                         <div class="cat-title">{{ g['label'] }}</div>
                         {% for dish in g['items'] %}
                         <div class="delete-item filter-item" data-name="{{ dish['name_zh'] }} {{ dish['name_en'] }}">
-                            <div>
-                                <strong>{{ dish['name_zh'] }}</strong>
-                                <div class="en">{{ dish['name_en'] }}</div>
+                            <div class="di-top">
+                                <div>
+                                    <strong>{{ dish['name_zh'] }}</strong>
+                                    <div class="en">{{ dish['name_en'] }}</div>
+                                </div>
+                                <div class="di-actions">
+                                    <form action="/set_dish_category" method="post">
+                                        <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
+                                        <select name="category" class="cat-select js-cat">
+                                            {% for c in dish_categories %}
+                                            <option value="{{ c }}" {% if c == dish['category'] %}selected{% endif %}>{{ c }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </form>
+                                    <form class="js-del-dish" action="/delete_dish" method="post" data-confirm="确定删除这个菜吗？">
+                                        <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
+                                        <button class="btn-danger btn-sm" type="submit">{{ ic.icon("trash", 14) }}</button>
+                                    </form>
+                                </div>
                             </div>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <form action="/set_dish_category" method="post">
+                            <details class="ref-edit">
+                                <summary>{{ ic.icon("plus", 13) }} 参考图 / 链接（给菲佣看）{% if dish['ref_link'] or dish['ref_image'] %} ✓{% endif %}</summary>
+                                <form action="/set_dish_ref" method="post" enctype="multipart/form-data" class="ref-form">
                                     <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
-                                    <select name="category" class="cat-select" onchange="this.form.submit()">
-                                        {% for c in dish_categories %}
-                                        <option value="{{ c }}" {% if c == dish['category'] %}selected{% endif %}>{{ c }}</option>
-                                        {% endfor %}
-                                    </select>
+                                    <input type="text" name="ref_link" value="{{ dish['ref_link'] or '' }}" placeholder="贴个链接（小红书 / 视频等）">
+                                    <input type="file" name="image" accept="image/*">
+                                    {% if dish['ref_image'] %}
+                                    <a class="ref-thumb" target="_blank" rel="noopener" href="/uploads/{{ dish['ref_image'] }}"><img src="/uploads/{{ dish['ref_image'] }}" alt="参考图"></a>
+                                    {% endif %}
+                                    <button class="btn-primary btn-sm" type="submit">保存参考</button>
                                 </form>
-                                <form action="/delete_dish" method="post" onsubmit="return confirm('确定删除这个菜吗？');">
-                                    <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
-                                    <button class="btn-danger btn-sm" type="submit">{{ ic.icon("trash", 14) }}</button>
-                                </form>
-                            </div>
+                            </details>
                         </div>
                         {% endfor %}
                     </div>
@@ -74,5 +88,6 @@
         </div>
     </div>
     <script src="{{ url_for('static', filename='filter.js') }}"></script>
+    <script src="{{ url_for('static', filename='dishes.js') }}"></script>
 </body>
 </html>

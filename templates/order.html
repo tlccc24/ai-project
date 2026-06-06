@@ -168,8 +168,40 @@
             {% endfor %}
         </div>
 
+        <!-- Shopping list -->
+        <div class="card" id="shopping">
+            <div class="card-head">{{ ic.icon("cart", 20) }}<h2>购物清单</h2></div>
+            <p class="section-hint">要买的东西，菲佣在「今天做什么」页面也能看到。</p>
+
+            <form action="/shopping_add" method="post" style="margin-bottom:10px;">
+                <div style="display:flex; gap:8px;">
+                    <input type="text" name="item" placeholder="加要买的，例如：鸡蛋 / 酱油">
+                    <button class="btn-ghost" type="submit">{{ ic.icon("plus", 16) }}</button>
+                </div>
+            </form>
+            <form action="/shopping_generate" method="post" style="margin-bottom:12px;">
+                <button class="btn-ghost btn-sm" type="submit">{{ ic.icon("sparkles", 15) }} 让 AI 根据菜单和冰箱生成</button>
+            </form>
+
+            {% if shopping_list %}
+                {% for s in shopping_list %}
+                <div class="shop-item">
+                    <span>{{ s['item'] }}</span>
+                    <form class="js-shop-done" action="/shopping_done" method="post">
+                        <input type="hidden" name="item_id" value="{{ s['id'] }}">
+                        <input type="hidden" name="from" value="order">
+                        <button class="btn-danger btn-sm" type="submit">{{ ic.icon("check", 14) }} 已买</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty">还没有要买的东西。</p>
+            {% endif %}
+        </div>
+
     </div>
     <script src="{{ url_for('static', filename='filter.js') }}"></script>
     <script src="{{ url_for('static', filename='order.js') }}"></script>
+    <script src="{{ url_for('static', filename='shopping.js') }}"></script>
 </body>
 </html>
