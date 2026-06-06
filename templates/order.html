@@ -111,17 +111,26 @@
                 <input type="time" name="meal_time">
 
                 <label class="field-label">选择菜品</label>
-                {% for g in dish_groups %}
-                <div class="cat-title">{{ g['label'] }}</div>
-                <div class="dish-grid">
-                    {% for dish in g['items'] %}
-                    <label class="dish-item">
-                        <input type="checkbox" name="today_dishes" value="{{ dish['name_zh'] }}">
-                        <span>{{ dish['name_zh'] }}</span>
-                    </label>
-                    {% endfor %}
+                <div class="searchbox">
+                    <span class="s-ic">{{ ic.icon("search", 17) }}</span>
+                    <input type="text" class="js-filter" data-scope="#dish-pick" placeholder="搜索菜名…">
                 </div>
-                {% endfor %}
+                <div id="dish-pick">
+                    {% for g in dish_groups %}
+                    <div class="filter-group">
+                        <div class="cat-title">{{ g['label'] }}</div>
+                        <div class="dish-grid">
+                            {% for dish in g['items'] %}
+                            <label class="dish-item filter-item" data-name="{{ dish['name_zh'] }} {{ dish['name_en'] }}">
+                                <input type="checkbox" name="today_dishes" value="{{ dish['name_zh'] }}">
+                                <span>{{ dish['name_zh'] }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <p class="no-result">没有找到相关菜。</p>
+                </div>
 
                 <label class="field-label">自定义菜名</label>
                 <input type="text" name="today_custom_dish" placeholder="例如：炒鸡蛋 / 番茄炒蛋">
@@ -159,5 +168,6 @@
         </div>
 
     </div>
+    <script src="{{ url_for('static', filename='filter.js') }}"></script>
 </body>
 </html>

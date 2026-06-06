@@ -44,7 +44,9 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
                  "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: var(--text);
-    background: var(--bg);
+    background-color: var(--bg);
+    background-image: linear-gradient(180deg, var(--accent-tint) 0, rgba(255,255,255,0) 280px);
+    background-repeat: no-repeat;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
@@ -70,7 +72,8 @@ body {
 .brand .badge {
     display: inline-flex; align-items: center; justify-content: center;
     width: 30px; height: 30px; border-radius: 9px;
-    background: var(--accent-tint); color: var(--accent-ink);
+    background: linear-gradient(135deg, var(--accent), var(--accent-ink)); color: #fff;
+    box-shadow: 0 2px 6px var(--accent-tint);
 }
 .appbar .home-link {
     display: inline-flex; align-items: center; gap: 6px;
@@ -139,8 +142,11 @@ button, .btn {
     cursor: pointer; background: #eef0f3; color: var(--text);
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
 }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:active { background: var(--accent-ink); }
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-ink));
+    color: #fff; box-shadow: 0 4px 12px var(--accent-tint);
+}
+.btn-primary:active { filter: brightness(.95); box-shadow: none; }
 .btn-block { display: flex; width: 100%; }
 .btn-success { background: var(--have); color: #fff; }
 .btn-ghost { background: var(--accent-tint); color: var(--accent-ink); }
@@ -207,9 +213,28 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 /* category dropdown (manage dishes) */
 .cat-select { font-size: 13px; padding: 8px 28px 8px 10px; border-radius: 999px; width: auto; }
 
+/* ---------- Category heading (prominent) ---------- */
+.cat-title {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 16.5px; font-weight: 700; color: var(--text);
+    margin: 24px 0 11px;
+}
+.cat-title::before {
+    content: ""; flex: 0 0 auto;
+    width: 4px; height: 18px; border-radius: 3px; background: var(--accent);
+}
+.cat-title:first-child { margin-top: 6px; }
+
+/* hidden by instant filter */
+.hidden { display: none !important; }
+
+/* ---------- Search box ---------- */
+.searchbox { position: relative; margin-bottom: 6px; }
+.searchbox .s-ic { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.searchbox input { padding-left: 40px; }
+.no-result { color: var(--muted); font-size: 14px; padding: 10px 2px; display: none; }
+
 /* ---------- Fridge inventory (segmented) ---------- */
-.cat-title { font-size: 12.5px; font-weight: 800; letter-spacing: .02em; color: var(--muted); margin: 18px 0 2px; }
-.cat-title:first-child { margin-top: 4px; }
 .fridge-item {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
     gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line);

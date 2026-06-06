@@ -17,6 +17,8 @@
     'fridge': '冰箱库存' if lang == 'zh' else 'Fridge',
     'inventory': '现有库存' if lang == 'zh' else 'Current Inventory',
     'inv_hint': '点一下就能改：绿 = 有，橙 = 不多，灰 = 没有。' if lang == 'zh' else 'Tap to set: green = have, orange = low, gray = none.',
+    'search': '搜索食材…' if lang == 'zh' else 'Search ingredients…',
+    'noresult': '没有找到相关食材。' if lang == 'zh' else 'No matching ingredients.',
     'jump': '快速跳到：' if lang == 'zh' else 'Jump to:',
     'add': '添加食材' if lang == 'zh' else 'Add Ingredient',
     'add_cat': '分到哪一类' if lang == 'zh' else 'Category',
@@ -54,6 +56,11 @@
             <div class="card-head">{{ ic.icon("fridge", 20) }}<h2>{{ t['inventory'] }}</h2></div>
             <p class="section-hint">{{ t['inv_hint'] }}</p>
 
+            <div class="searchbox">
+                <span class="s-ic">{{ ic.icon("search", 17) }}</span>
+                <input type="text" class="js-filter" data-scope="#fridge-list" placeholder="{{ t['search'] }}">
+            </div>
+
             {% if fridge_groups %}
             <div class="jumpbar" aria-label="{{ t['jump'] }}">
                 {% for group in fridge_groups %}
@@ -62,11 +69,13 @@
             </div>
             {% endif %}
 
+            <p class="no-result">{{ t['noresult'] }}</p>
+
             {% for group in fridge_groups %}
-            <div class="cat-section" id="cat-{{ loop.index }}">
+            <div class="cat-section filter-group" id="cat-{{ loop.index }}">
                 <div class="cat-title">{{ group['label'] }}</div>
                 {% for item in group['items'] %}
-                <div class="fridge-item">
+                <div class="fridge-item filter-item" data-name="{{ item['name_zh'] }} {{ item['name_en'] }}">
                     <div class="item-name">
                         {{ item['name_zh'] if lang == 'zh' else item['name_en'] }}
                         <small>{{ item['name_en'] if lang == 'zh' else item['name_zh'] }}</small>
@@ -119,5 +128,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='fridge.js') }}"></script>
+    <script src="{{ url_for('static', filename='filter.js') }}"></script>
 </body>
 </html>

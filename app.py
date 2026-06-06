@@ -756,21 +756,10 @@ def delete_plan():
 @app.route("/dishes", methods=["GET"])
 def dishes_page():
     dishes = get_all_dishes()
-    search_query = request.args.get("search", "").strip()
-
-    if search_query:
-        filtered_dishes = [
-            dish for dish in dishes
-            if search_query in dish["name_zh"] or search_query.lower() in dish["name_en"].lower()
-        ]
-    else:
-        filtered_dishes = dishes
-
     return render_template(
         "dishes.html",
-        dish_groups=build_dish_groups(filtered_dishes),
+        dish_groups=build_dish_groups(dishes),
         dish_categories=DISH_CATEGORIES,
-        search_query=search_query,
     )
 
 
