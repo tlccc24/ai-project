@@ -68,7 +68,7 @@
                                         <a class="recipe-link" target="_blank" rel="noopener" href="{{ ref['link'] }}">{{ ic.icon('arrow-right', 13) }} {% if lang == 'zh' %}参考{% else %}Ref{% endif %}</a>
                                         {% endif %}
                                         <a class="recipe-link" target="_blank" rel="noopener"
-                                           href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
+                                           href="https://www.youtube.com/results?search_query={{ ((dish ~ ' authentic Chinese recipe') if lang == 'en' else (dish ~ ' 家常做法')) | urlencode }}">
                                            {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
                                         </a>
                                     </span>
@@ -108,7 +108,7 @@
                                         <a class="recipe-link" target="_blank" rel="noopener" href="{{ ref['link'] }}">{{ ic.icon('arrow-right', 13) }} {% if lang == 'zh' %}参考{% else %}Ref{% endif %}</a>
                                         {% endif %}
                                         <a class="recipe-link" target="_blank" rel="noopener"
-                                           href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
+                                           href="https://www.youtube.com/results?search_query={{ ((dish ~ ' authentic Chinese recipe') if lang == 'en' else (dish ~ ' 家常做法')) | urlencode }}">
                                            {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
                                         </a>
                                     </span>
