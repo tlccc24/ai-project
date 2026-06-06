@@ -7,34 +7,35 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+{% import "_icons.html" as ic %}
     <div class="landing">
         <div class="landing-head">
-            <div class="logo">🍽️</div>
+            <div class="mark">{{ ic.icon("bowl", 32) }}</div>
             <h1>家庭点菜</h1>
             <p>请选择你的身份 · Choose who you are</p>
         </div>
 
         <div class="role-cards">
             <a class="role-card mom" href="/order">
-                <span class="emoji">👩</span>
-                <span class="role-text">
+                <span class="rc-ic">{{ ic.icon("user", 26) }}</span>
+                <span class="rc-text">
                     <strong>我要点菜</strong>
-                    <span>妈妈 · 点餐、未来菜单、AI 推荐</span>
+                    <span>妈妈 · 点餐、未来菜单、冰箱、AI 推荐</span>
                 </span>
+                <span class="rc-go">{{ ic.icon("arrow-right", 20) }}</span>
             </a>
 
             <a class="role-card cook" href="/dashboard?lang=zh">
-                <span class="emoji">👩‍🍳</span>
-                <span class="role-text">
+                <span class="rc-ic">{{ ic.icon("chef", 26) }}</span>
+                <span class="rc-text">
                     <strong>我要做饭</strong>
-                    <span>佣人 · 看菜单、冰箱库存 (中文/English)</span>
+                    <span>佣人 · 看菜单、冰箱库存（中文 / English）</span>
                 </span>
+                <span class="rc-go">{{ ic.icon("arrow-right", 20) }}</span>
             </a>
         </div>
 
-        <div class="tip-row">
-            <span class="tip">把这个网址加到手机主屏幕，用起来就像 App 一样。</span>
-        </div>
+        <p class="landing-tip">把网址加到手机主屏幕，用起来就像 App 一样</p>
     </div>
 </body>
 </html>

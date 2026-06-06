@@ -7,28 +7,31 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="role-mom">
+{% import "_icons.html" as ic %}
+
     <div class="appbar">
         <div class="appbar-inner">
-            <h1>👩 妈妈 · 管理菜品</h1>
-            <a class="home-link" href="/">🏠 首页</a>
+            <span class="brand"><span class="badge">{{ ic.icon("user", 18) }}</span>妈妈</span>
+            <a class="home-link" href="/">{{ ic.icon("home", 16) }} 首页</a>
         </div>
     </div>
 
     <nav class="tabnav">
-        <a href="/order">点餐</a>
-        <a href="/plans">未来菜单</a>
-        <a class="active" href="/dishes">管理菜品</a>
+        <a href="/order">{{ ic.icon("order", 16) }} 点餐</a>
+        <a href="/plans">{{ ic.icon("calendar", 16) }} 未来菜单</a>
+        <a href="/fridge?lang=zh">{{ ic.icon("fridge", 16) }} 冰箱</a>
+        <a class="active" href="/dishes">{{ ic.icon("list", 16) }} 管理菜品</a>
     </nav>
 
     <div class="container">
         <div class="card" id="delete-section">
-            <h2>🗂️ 删除已保存的菜</h2>
+            <div class="card-head">{{ ic.icon("list", 20) }}<h2>删除已保存的菜</h2></div>
             <p class="section-hint">删除一个菜，会同时删掉它在所有菜单里的记录。</p>
 
             <form action="/dishes" method="get" style="margin-bottom:16px;">
-                <input type="text" name="search" value="{{ search_query }}" placeholder="搜索要删除的菜，例如：米饭">
-                <div style="margin-top:10px;">
-                    <button class="btn-primary btn-sm" type="submit">搜索</button>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" name="search" value="{{ search_query }}" placeholder="搜索要删除的菜，例如：米饭">
+                    <button class="btn-ghost" type="submit">{{ ic.icon("search", 16) }}</button>
                 </div>
             </form>
 
@@ -42,7 +45,7 @@
                     <form action="/delete_dish" method="post" onsubmit="return confirm('确定删除这个菜吗？');">
                         <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
                         <input type="hidden" name="search" value="{{ search_query }}">
-                        <button class="btn-danger btn-sm" type="submit">删除</button>
+                        <button class="btn-danger btn-sm" type="submit">{{ ic.icon("trash", 14) }} 删除</button>
                     </form>
                 </div>
                 {% endfor %}

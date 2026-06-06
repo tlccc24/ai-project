@@ -580,6 +580,11 @@ def render_order(recommendation=None, rec_meal_type=""):
     tomorrow_meals = build_day_meals_map(rows, tomorrow.isoformat(), lang="zh")
     day_after_meals = build_day_meals_map(rows, day_after.isoformat(), lang="zh")
 
+    # fridge glance for the order page
+    fridge_rows = get_fridge_items()
+    fridge_have = [r["name_zh"] for r in fridge_rows if r["status"] == "有"]
+    fridge_low = [r["name_zh"] for r in fridge_rows if r["status"] == "不多"]
+
     return render_template(
         "order.html",
         dishes=dishes,
@@ -593,6 +598,8 @@ def render_order(recommendation=None, rec_meal_type=""):
         meal_type_en=MEAL_TYPE_EN,
         recommendation=recommendation,
         rec_meal_type=rec_meal_type,
+        fridge_have=fridge_have,
+        fridge_low=fridge_low,
     )
 
 

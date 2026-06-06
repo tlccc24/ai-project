@@ -7,38 +7,39 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="role-cook">
-    {% set t = {
-        'title': '冰箱库存' if lang == 'zh' else 'Fridge Inventory',
-        'home': '首页' if lang == 'zh' else 'Home',
-        'today': '今天做什么' if lang == 'zh' else 'Today',
-        'fridge': '冰箱库存' if lang == 'zh' else 'Fridge',
-        'inventory': '现有库存' if lang == 'zh' else 'Current Inventory',
-        'inv_hint': '点一下就能改：绿=有，橙=不多，灰=没有。' if lang == 'zh' else 'Tap to set: green = have, orange = low, gray = none.',
-        'add': '添加食材' if lang == 'zh' else 'Add Ingredient',
-        'add_hint': ('新加的食材会放进“其他”，默认标为“有”。可一次输入多个，用 /、逗号、顿号或换行分开。'
-                     if lang == 'zh' else
-                     'New items go under "Other", marked "Have". Add several at once using / , 、 or new lines.'),
-        'add_btn': '添加' if lang == 'zh' else 'Add',
-        'del_confirm': '确定删除这个食材吗？' if lang == 'zh' else 'Delete this ingredient?',
-    } %}
+{% import "_icons.html" as ic %}
+{% set t = {
+    'title': '冰箱库存' if lang == 'zh' else 'Fridge',
+    'home': '首页' if lang == 'zh' else 'Home',
+    'today': '今天做什么' if lang == 'zh' else 'Today',
+    'fridge': '冰箱库存' if lang == 'zh' else 'Fridge',
+    'inventory': '现有库存' if lang == 'zh' else 'Current Inventory',
+    'inv_hint': '点一下就能改：绿 = 有，橙 = 不多，灰 = 没有。' if lang == 'zh' else 'Tap to set: green = have, orange = low, gray = none.',
+    'add': '添加食材' if lang == 'zh' else 'Add Ingredient',
+    'add_hint': ('新加的食材会放进“其他”，默认标为“有”。可一次输入多个，用 /、逗号、顿号或换行分开。'
+                 if lang == 'zh' else
+                 'New items go under "Other", marked "Have". Add several at once using / , 、 or new lines.'),
+    'add_btn': '添加' if lang == 'zh' else 'Add',
+    'del_confirm': '确定删除这个食材吗？' if lang == 'zh' else 'Delete this ingredient?',
+} %}
 
     <div class="appbar">
         <div class="appbar-inner">
-            <h1>🧊 {{ t['title'] }}</h1>
-            <a class="home-link" href="/">🏠 {{ t['home'] }}</a>
+            <span class="brand"><span class="badge">{{ ic.icon("fridge", 18) }}</span>{{ t['title'] }}</span>
+            <a class="home-link" href="/">{{ ic.icon("home", 16) }} {{ t['home'] }}</a>
         </div>
     </div>
 
     <nav class="tabnav">
-        <a href="/dashboard?lang={{ lang }}">{{ t['today'] }}</a>
-        <a class="active" href="/fridge?lang={{ lang }}">{{ t['fridge'] }}</a>
-        <a href="/fridge?lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
+        <a href="/dashboard?lang={{ lang }}">{{ ic.icon("bowl", 16) }} {{ t['today'] }}</a>
+        <a class="active" href="/fridge?lang={{ lang }}">{{ ic.icon("fridge", 16) }} {{ t['fridge'] }}</a>
+        <a class="lang" href="/fridge?lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
     </nav>
 
     <div class="container">
 
         <div class="card" id="fridge-list">
-            <h2>📦 {{ t['inventory'] }}</h2>
+            <div class="card-head">{{ ic.icon("fridge", 20) }}<h2>{{ t['inventory'] }}</h2></div>
             <p class="section-hint">{{ t['inv_hint'] }}</p>
 
             {% for group in fridge_groups %}
@@ -64,7 +65,7 @@
                     <form action="/fridge_delete" method="post" onsubmit="return confirm('{{ t['del_confirm'] }}');">
                         <input type="hidden" name="lang" value="{{ lang }}">
                         <input type="hidden" name="item_id" value="{{ item['id'] }}">
-                        <button class="row-del" type="submit">✕</button>
+                        <button class="row-del" type="submit">{{ ic.icon("x", 17) }}</button>
                     </form>
                 </div>
             </div>
@@ -73,13 +74,13 @@
         </div>
 
         <div class="card">
-            <h2>➕ {{ t['add'] }}</h2>
+            <div class="card-head">{{ ic.icon("plus", 20) }}<h2>{{ t['add'] }}</h2></div>
             <form action="/fridge_add" method="post">
                 <input type="hidden" name="lang" value="{{ lang }}">
-                <input type="text" name="new_ingredient" placeholder="{{ '例如：青椒/玉米' if lang == 'zh' else 'e.g. green pepper / corn' }}">
+                <input type="text" name="new_ingredient" placeholder="{{ '例如：青椒 / 玉米' if lang == 'zh' else 'e.g. green pepper / corn' }}">
                 <p class="hint">{{ t['add_hint'] }}</p>
                 <div style="margin-top:12px;">
-                    <button class="btn-primary btn-block" type="submit">{{ t['add_btn'] }}</button>
+                    <button class="btn-primary btn-block" type="submit">{{ ic.icon("plus", 16) }} {{ t['add_btn'] }}</button>
                 </div>
             </form>
         </div>

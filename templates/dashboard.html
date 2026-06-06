@@ -8,54 +8,59 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="role-cook">
-    {% set meal_emoji = {'早餐':'🌅','午餐':'☀️','晚餐':'🌙'} %}
+{% import "_icons.html" as ic %}
+{% set meal_ic = {'早餐':'sunrise','午餐':'sun','晚餐':'moon'} %}
 
     <div class="appbar">
         <div class="appbar-inner">
-            <h1>{% if lang == 'zh' %}👩‍🍳 今天做什么{% else %}👩‍🍳 What to Cook{% endif %}</h1>
-            <a class="home-link" href="/">🏠 {% if lang == 'zh' %}首页{% else %}Home{% endif %}</a>
+            <span class="brand"><span class="badge">{{ ic.icon("chef", 18) }}</span>{% if lang == 'zh' %}佣人{% else %}Helper{% endif %}</span>
+            <a class="home-link" href="/">{{ ic.icon("home", 16) }} {% if lang == 'zh' %}首页{% else %}Home{% endif %}</a>
         </div>
     </div>
 
     <nav class="tabnav">
-        <a class="active" href="/dashboard?lang={{ lang }}">{% if lang == 'zh' %}今天做什么{% else %}Today{% endif %}</a>
-        <a href="/fridge?lang={{ lang }}">{% if lang == 'zh' %}冰箱库存{% else %}Fridge{% endif %}</a>
-        <a href="/dashboard?lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
+        <a class="active" href="/dashboard?lang={{ lang }}">{{ ic.icon("bowl", 16) }} {% if lang == 'zh' %}今天做什么{% else %}Today{% endif %}</a>
+        <a href="/fridge?lang={{ lang }}">{{ ic.icon("fridge", 16) }} {% if lang == 'zh' %}冰箱库存{% else %}Fridge{% endif %}</a>
+        <a class="lang" href="/dashboard?lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
     </nav>
 
     <div class="container">
 
         <div class="card">
-            <h2>{% if lang == 'zh' %}🍚 今天（{{ today_str }}）{% else %}🍚 Today ({{ today_str }}){% endif %}</h2>
+            <div class="card-head">{{ ic.icon("bowl", 20) }}<h2>{% if lang == 'zh' %}今天（{{ today_str }}）{% else %}Today ({{ today_str }}){% endif %}</h2></div>
             {% for meal_type_zh in meal_types %}
                 {% set meal_label = meal_type_zh if lang == 'zh' else meal_type_en[meal_type_zh] %}
-                <div class="meal-card">
-                    <h3>{{ meal_emoji[meal_type_zh] }} {{ meal_label }}</h3>
-                    {% if today_meals[meal_label]["meal_time"] %}
-                        <p class="meal-time">{% if lang == 'zh' %}开饭时间：{% else %}Meal time: {% endif %}{{ today_meals[meal_label]["meal_time"] }}</p>
-                    {% endif %}
-                    {% if today_meals[meal_label]["dishes"] %}
-                        <ul>{% for dish in today_meals[meal_label]["dishes"] %}<li>{{ dish }}</li>{% endfor %}</ul>
-                    {% else %}
-                        <p class="empty">{% if lang == 'zh' %}未点菜{% else %}No dishes planned{% endif %}</p>
-                    {% endif %}
+                <div class="meal">
+                    <div class="meal-ic">{{ ic.icon(meal_ic[meal_type_zh], 18) }}</div>
+                    <div class="meal-body">
+                        <span class="mt-name">{{ meal_label }}</span>
+                        {% if today_meals[meal_label]["meal_time"] %}
+                            <span class="mt-time">{{ ic.icon("clock", 13) }} {{ today_meals[meal_label]["meal_time"] }}</span>
+                        {% endif %}
+                        {% if today_meals[meal_label]["dishes"] %}
+                            <p class="dishes">{% for dish in today_meals[meal_label]["dishes"] %}<span>{{ dish }}</span>{% endfor %}</p>
+                        {% else %}
+                            <p class="empty">{% if lang == 'zh' %}未点菜{% else %}No dishes planned{% endif %}</p>
+                        {% endif %}
+                    </div>
                 </div>
             {% endfor %}
         </div>
 
         <div class="card">
-            <h2>{% if lang == 'zh' %}📅 未来 7 天{% else %}📅 Next 7 Days{% endif %}</h2>
+            <div class="card-head">{{ ic.icon("calendar", 20) }}<h2>{% if lang == 'zh' %}未来 7 天{% else %}Next 7 Days{% endif %}</h2></div>
             {% if grouped_plans %}
                 {% for meal_date, meals in grouped_plans.items() %}
-                <div class="date-block">
-                    <h3>{{ meal_date }}</h3>
+                <div class="day-block">
+                    <div class="day-label">{{ meal_date }}</div>
                     {% for meal_name, meal_data in meals.items() %}
-                    <div class="meal-card">
-                        <h3>{{ meal_name }}</h3>
-                        {% if meal_data["meal_time"] %}
-                            <p class="meal-time">{% if lang == 'zh' %}开饭时间：{% else %}Meal time: {% endif %}{{ meal_data["meal_time"] }}</p>
-                        {% endif %}
-                        <ul>{% for dish in meal_data["dishes"] %}<li>{{ dish }}</li>{% endfor %}</ul>
+                    <div class="meal">
+                        <div class="meal-ic">{{ ic.icon("bowl", 18) }}</div>
+                        <div class="meal-body">
+                            <span class="mt-name">{{ meal_name }}</span>
+                            {% if meal_data["meal_time"] %}<span class="mt-time">{{ ic.icon("clock", 13) }} {{ meal_data["meal_time"] }}</span>{% endif %}
+                            <p class="dishes">{% for dish in meal_data["dishes"] %}<span>{{ dish }}</span>{% endfor %}</p>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -65,9 +70,7 @@
             {% endif %}
         </div>
 
-        <div class="card">
-            <p class="hint">{% if lang == 'zh' %}本页面每 15 秒自动刷新一次。{% else %}This page refreshes every 15 seconds.{% endif %}</p>
-        </div>
+        <p class="landing-tip">{% if lang == 'zh' %}本页面每 15 秒自动刷新{% else %}This page refreshes every 15 seconds{% endif %}</p>
 
     </div>
 </body>

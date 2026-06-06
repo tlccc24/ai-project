@@ -7,25 +7,27 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="role-mom">
-    {% set meal_emoji = {'早餐':'🌅','午餐':'☀️','晚餐':'🌙'} %}
+{% import "_icons.html" as ic %}
+{% set meal_ic = {'早餐':'sunrise','午餐':'sun','晚餐':'moon'} %}
 
     <div class="appbar">
         <div class="appbar-inner">
-            <h1>👩 妈妈 · 未来菜单</h1>
-            <a class="home-link" href="/">🏠 首页</a>
+            <span class="brand"><span class="badge">{{ ic.icon("user", 18) }}</span>妈妈</span>
+            <a class="home-link" href="/">{{ ic.icon("home", 16) }} 首页</a>
         </div>
     </div>
 
     <nav class="tabnav">
-        <a href="/order">点餐</a>
-        <a class="active" href="/plans">未来菜单</a>
-        <a href="/dishes">管理菜品</a>
+        <a href="/order">{{ ic.icon("order", 16) }} 点餐</a>
+        <a class="active" href="/plans">{{ ic.icon("calendar", 16) }} 未来菜单</a>
+        <a href="/fridge?lang=zh">{{ ic.icon("fridge", 16) }} 冰箱</a>
+        <a href="/dishes">{{ ic.icon("list", 16) }} 管理菜品</a>
     </nav>
 
     <div class="container">
 
         <div class="card">
-            <h2>🗓️ 安排未来菜单</h2>
+            <div class="card-head">{{ ic.icon("calendar", 20) }}<h2>安排未来菜单</h2></div>
             <form action="/plan_order" method="post">
                 <label class="field-label">日期</label>
                 <input type="date" name="meal_date" value="{{ default_plan_date }}" min="{{ default_plan_date }}" required>
@@ -33,15 +35,14 @@
                 <label class="field-label">餐别</label>
                 <select name="meal_type" required>
                     {% for meal_type in meal_types %}
-                    <option value="{{ meal_type }}">{{ meal_emoji[meal_type] }} {{ meal_type }}</option>
+                    <option value="{{ meal_type }}">{{ meal_type }}</option>
                     {% endfor %}
                 </select>
 
                 <label class="field-label">开饭时间（可不选）</label>
                 <input type="time" name="meal_time">
-                <p class="hint">如果不选时间，佣人页面不会显示开饭时间。</p>
 
-                <h3 style="margin-top:18px;">选择菜品</h3>
+                <label class="field-label">选择菜品</label>
                 <div class="dish-grid">
                     {% for dish in dishes %}
                     <label class="dish-item">
@@ -51,32 +52,35 @@
                     {% endfor %}
                 </div>
 
-                <h3 style="margin-top:18px;">自定义菜名</h3>
-                <input type="text" name="planned_custom_dish" placeholder="例如：蒸鱼/青菜汤">
+                <label class="field-label">自定义菜名</label>
+                <input type="text" name="planned_custom_dish" placeholder="例如：蒸鱼 / 青菜汤">
                 <p class="hint">可一次输入多个菜，用 /、逗号、顿号或换行分开。</p>
 
-                <div style="margin-top:18px;">
-                    <button class="btn-primary btn-block" type="submit">保存这一天这顿</button>
+                <div style="margin-top:16px;">
+                    <button class="btn-primary btn-block" type="submit">{{ ic.icon("check", 17) }} 保存这一天这顿</button>
                 </div>
             </form>
         </div>
 
         <div class="card" id="plans-list">
-            <h2>📋 已安排的未来菜单</h2>
+            <div class="card-head">{{ ic.icon("bowl", 20) }}<h2>已安排的菜单</h2></div>
             {% if grouped_plans %}
                 {% for meal_date, meals in grouped_plans.items() %}
-                <div class="date-block">
-                    <h3>{{ meal_date }}</h3>
+                <div class="day-block">
+                    <div class="day-label">{{ meal_date }}</div>
                     {% for meal_name, meal_data in meals.items() %}
-                    <div class="meal-card">
-                        <h3>{{ meal_emoji[meal_name] }} {{ meal_name }}</h3>
-                        {% if meal_data["meal_time"] %}<p class="meal-time">开饭时间：{{ meal_data["meal_time"] }}</p>{% endif %}
-                        <ul>{% for dish in meal_data["dishes"] %}<li>{{ dish }}</li>{% endfor %}</ul>
-                        <form action="/delete_plan" method="post" onsubmit="return confirm('确定删除这一天这顿吗？');" style="margin-top:10px;">
-                            <input type="hidden" name="meal_date" value="{{ meal_date }}">
-                            <input type="hidden" name="meal_type_zh" value="{{ meal_name }}">
-                            <button class="btn-danger btn-sm" type="submit">删除这一天这顿</button>
-                        </form>
+                    <div class="meal">
+                        <div class="meal-ic">{{ ic.icon(meal_ic[meal_name], 18) }}</div>
+                        <div class="meal-body">
+                            <span class="mt-name">{{ meal_name }}</span>
+                            {% if meal_data["meal_time"] %}<span class="mt-time">{{ ic.icon("clock", 13) }} {{ meal_data["meal_time"] }}</span>{% endif %}
+                            <p class="dishes">{% for dish in meal_data["dishes"] %}<span>{{ dish }}</span>{% endfor %}</p>
+                            <form action="/delete_plan" method="post" onsubmit="return confirm('确定删除这一天这顿吗？');" style="margin-top:8px;">
+                                <input type="hidden" name="meal_date" value="{{ meal_date }}">
+                                <input type="hidden" name="meal_type_zh" value="{{ meal_name }}">
+                                <button class="btn-danger btn-sm" type="submit">{{ ic.icon("trash", 14) }} 删除</button>
+                            </form>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
