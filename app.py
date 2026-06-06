@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
+import json
 from pathlib import Path
 from openai import OpenAI
 import os
@@ -41,6 +42,22 @@ TRANSLATIONS = {
     "蒸蛋": "Steamed Egg",
     "红烧肉": "Braised Pork",
     "清蒸鸡": "Steamed Chicken",
+    "番茄": "Tomato",
+    "胡萝卜": "Carrot",
+    "洋葱": "Onion",
+    "青椒": "Green Pepper",
+    "蘑菇": "Mushroom",
+    "玉米": "Corn",
+    "菠菜": "Spinach",
+    "葱": "Green Onion",
+    "姜": "Ginger",
+    "蒜": "Garlic",
+    "米": "Rice",
+    "面条": "Noodles",
+    "馒头": "Steamed Bun",
+    "酱油": "Soy Sauce",
+    "盐": "Salt",
+    "食用油": "Cooking Oil",
 }
 
 PRESET_DISHES_ZH = [
@@ -61,6 +78,35 @@ MEAL_TYPE_EN = {
     "早餐": "Breakfast",
     "午餐": "Lunch",
     "晚餐": "Dinner",
+}
+
+# --- Fridge / inventory ---
+
+FRIDGE_STATUSES = ["有", "不多", "没有"]
+FRIDGE_STATUS_EN = {
+    "有": "Have",
+    "不多": "Low",
+    "没有": "None",
+}
+DEFAULT_FRIDGE_STATUS = "没有"
+
+FRIDGE_CATEGORIES = ["蔬菜", "肉蛋", "主食", "调味", "其他"]
+FRIDGE_CATEGORY_EN = {
+    "蔬菜": "Vegetables",
+    "肉蛋": "Meat & Egg",
+    "主食": "Staples",
+    "调味": "Seasoning",
+    "其他": "Other",
+}
+CUSTOM_FRIDGE_CATEGORY = "其他"
+
+# Seed ingredients grouped by category. All seed names exist in TRANSLATIONS,
+# so init_db can store English names without calling the translation API.
+PRESET_INGREDIENTS = {
+    "蔬菜": ["青菜", "白菜", "西兰花", "土豆", "番茄", "胡萝卜", "洋葱", "蘑菇", "菠菜"],
+    "肉蛋": ["鸡肉", "猪肉", "牛肉", "鱼", "虾", "鸡蛋", "豆腐"],
+    "主食": ["米", "面条", "馒头"],
+    "调味": ["酱油", "盐", "食用油", "葱", "姜", "蒜"],
 }
 
 
@@ -156,6 +202,17 @@ def init_db():
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fridge_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name_zh TEXT NOT NULL UNIQUE,
+            name_en TEXT NOT NULL,
+            category TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT '没有',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     ensure_column_exists(conn, "planned_orders", "meal_time", "TEXT")
 
     for dish_zh in PRESET_DISHES_ZH:
@@ -164,6 +221,14 @@ def init_db():
             "INSERT OR IGNORE INTO dishes (name_zh, name_en) VALUES (?, ?)",
             (dish_zh, dish_en),
         )
+
+    for category, ingredients in PRESET_INGREDIENTS.items():
+        for name_zh in ingredients:
+            name_en = TRANSLATIONS.get(name_zh, name_zh)
+            cur.execute(
+                "INSERT OR IGNORE INTO fridge_items (name_zh, name_en, category, status) VALUES (?, ?, ?, ?)",
+                (name_zh, name_en, category, DEFAULT_FRIDGE_STATUS),
+            )
 
     conn.commit()
     conn.close()
@@ -336,6 +401,150 @@ def save_meal(meal_date: str, meal_type_zh: str, selected_dishes_zh: list[str], 
     conn.close()
 
 
+# --- Fridge data helpers ---
+
+def get_fridge_items():
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id, name_zh, name_en, category, status FROM fridge_items ORDER BY id ASC"
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def build_fridge_groups(rows, lang="zh"):
+    """Group fridge rows by category, preserving FRIDGE_CATEGORIES order."""
+    groups = {cat: [] for cat in FRIDGE_CATEGORIES}
+    for row in rows:
+        category = row["category"] if row["category"] in groups else CUSTOM_FRIDGE_CATEGORY
+        groups[category].append(row)
+
+    ordered = []
+    for cat in FRIDGE_CATEGORIES:
+        if not groups[cat]:
+            continue
+        label = cat if lang == "zh" else FRIDGE_CATEGORY_EN[cat]
+        ordered.append({"category_zh": cat, "label": label, "items": groups[cat]})
+    return ordered
+
+
+def set_fridge_status(item_id: str, status: str):
+    if status not in FRIDGE_STATUSES:
+        return
+    conn = get_conn()
+    conn.execute(
+        "UPDATE fridge_items SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (status, item_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def add_fridge_items(raw_text: str):
+    names = split_custom_dishes(raw_text)
+    if not names:
+        return
+    conn = get_conn()
+    cur = conn.cursor()
+    for name_zh in names:
+        name_en = TRANSLATIONS.get(name_zh) or translate_to_english(name_zh)
+        cur.execute(
+            "INSERT OR IGNORE INTO fridge_items (name_zh, name_en, category, status) VALUES (?, ?, ?, ?)",
+            (name_zh, name_en, CUSTOM_FRIDGE_CATEGORY, "有"),
+        )
+    conn.commit()
+    conn.close()
+
+
+def delete_fridge_item(item_id: str):
+    conn = get_conn()
+    conn.execute("DELETE FROM fridge_items WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_recent_meal_names(days: int = 10):
+    """Distinct dish names planned in the recent window, for AI variety."""
+    start = (today_local() - timedelta(days=days)).isoformat()
+    end = today_local().isoformat()
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT DISTINCT dish_name_zh FROM planned_orders WHERE meal_date >= ? AND meal_date <= ?",
+        (start, end),
+    ).fetchall()
+    conn.close()
+    return [row["dish_name_zh"] for row in rows]
+
+
+def _parse_ai_json(raw_text: str):
+    """Strip markdown fences and parse the model's JSON reply."""
+    text = (raw_text or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:]
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        return None
+    try:
+        return json.loads(text[start:end + 1])
+    except (ValueError, json.JSONDecodeError):
+        return None
+
+
+def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
+    """Ask the model for meal ideas from current fridge inventory.
+
+    Returns {"suggestions": [{"dishes": [...], "reason": str}], "to_buy": [...]}
+    or {"error": str} on failure.
+    """
+    if meal_type_zh not in MEAL_TYPES:
+        return {"error": "invalid meal type"}
+
+    rows = get_fridge_items()
+    have = [r["name_zh"] for r in rows if r["status"] == "有"]
+    low = [r["name_zh"] for r in rows if r["status"] == "不多"]
+    recent = get_recent_meal_names()
+
+    if not have and not low:
+        return {"error": "empty_fridge"}
+
+    out_lang = "Chinese (Simplified)" if lang == "zh" else "English"
+    prompt = (
+        "You are a home cooking assistant for a Chinese family. "
+        "Suggest 2-3 simple home-style meal combinations for the given meal. "
+        "Only use ingredients that are in stock; staples like rice/oil/salt may be assumed. "
+        "Avoid repeating recently eaten dishes when reasonable. "
+        "Also list any common ingredients that are out of stock or low and worth buying for your suggestions.\n\n"
+        f"Meal: {MEAL_TYPE_EN[meal_type_zh]} ({meal_type_zh})\n"
+        f"In stock (有): {', '.join(have) or 'none'}\n"
+        f"Running low (不多): {', '.join(low) or 'none'}\n"
+        f"Recently eaten (avoid repeating): {', '.join(recent) or 'none'}\n\n"
+        f"Write all dish names, reasons and shopping items in {out_lang}.\n"
+        "Reply with ONLY valid JSON in this exact shape, no markdown:\n"
+        '{"suggestions": [{"dishes": ["dish1", "dish2"], "reason": "short reason"}], '
+        '"to_buy": ["item1", "item2"]}'
+    )
+
+    try:
+        response = client.responses.create(model="gpt-4o-mini", input=prompt)
+        data = _parse_ai_json(response.output_text)
+    except Exception:
+        return {"error": "ai_failed"}
+
+    if not data or "suggestions" not in data:
+        return {"error": "ai_failed"}
+
+    suggestions = []
+    for s in data.get("suggestions", []):
+        dishes = [d for d in s.get("dishes", []) if isinstance(d, str) and d.strip()]
+        if dishes:
+            suggestions.append({"dishes": dishes, "reason": s.get("reason", "")})
+
+    return {"suggestions": suggestions, "to_buy": data.get("to_buy", [])}
+
+
 @app.route("/", methods=["GET"])
 def index():
     cleanup_past_plans()
@@ -490,6 +699,78 @@ def dashboard():
         meal_types=MEAL_TYPES,
         meal_type_en=MEAL_TYPE_EN,
     )
+
+
+def _normalize_lang(raw):
+    lang = (raw or "zh").strip().lower()
+    return lang if lang in ("zh", "en") else "zh"
+
+
+def render_fridge(lang, recommendation=None, rec_meal_type=""):
+    rows = get_fridge_items()
+    fridge_groups = build_fridge_groups(rows, lang=lang)
+    return render_template(
+        "fridge.html",
+        lang=lang,
+        fridge_groups=fridge_groups,
+        statuses=FRIDGE_STATUSES,
+        status_en=FRIDGE_STATUS_EN,
+        meal_types=MEAL_TYPES,
+        meal_type_en=MEAL_TYPE_EN,
+        today_str=today_local().isoformat(),
+        recommendation=recommendation,
+        rec_meal_type=rec_meal_type,
+    )
+
+
+@app.route("/fridge", methods=["GET"])
+def fridge():
+    lang = _normalize_lang(request.args.get("lang"))
+    return render_fridge(lang)
+
+
+@app.route("/fridge_update", methods=["POST"])
+def fridge_update():
+    lang = _normalize_lang(request.form.get("lang"))
+    item_id = request.form.get("item_id", "").strip()
+    status = request.form.get("status", "").strip()
+    if item_id and status:
+        set_fridge_status(item_id, status)
+    return redirect(url_for("fridge", lang=lang) + "#fridge-list")
+
+
+@app.route("/fridge_add", methods=["POST"])
+def fridge_add():
+    lang = _normalize_lang(request.form.get("lang"))
+    add_fridge_items(request.form.get("new_ingredient", "").strip())
+    return redirect(url_for("fridge", lang=lang) + "#fridge-list")
+
+
+@app.route("/fridge_delete", methods=["POST"])
+def fridge_delete():
+    lang = _normalize_lang(request.form.get("lang"))
+    item_id = request.form.get("item_id", "").strip()
+    if item_id:
+        delete_fridge_item(item_id)
+    return redirect(url_for("fridge", lang=lang) + "#fridge-list")
+
+
+@app.route("/recommend", methods=["POST"])
+def recommend():
+    lang = _normalize_lang(request.form.get("lang"))
+    meal_type_zh = request.form.get("meal_type", "").strip()
+    recommendation = get_ai_recommendation(meal_type_zh, lang=lang)
+    return render_fridge(lang, recommendation=recommendation, rec_meal_type=meal_type_zh)
+
+
+@app.route("/fridge_to_plan", methods=["POST"])
+def fridge_to_plan():
+    lang = _normalize_lang(request.form.get("lang"))
+    meal_type_zh = request.form.get("meal_type", "").strip()
+    dishes_raw = request.form.get("dishes", "").strip()
+    selected = split_custom_dishes(dishes_raw)
+    save_meal(today_local().isoformat(), meal_type_zh, selected, "", "")
+    return redirect(url_for("index") + "#order-section")
 
 
 init_db()

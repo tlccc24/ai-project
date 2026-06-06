@@ -67,6 +67,7 @@
     <div class="card lang-switch">
         <a href="/dashboard?lang=en">English</a>
         <a href="/dashboard?lang=zh">中文</a>
+        <a href="/fridge?lang={{ lang }}">{% if lang == 'zh' %}冰箱库存{% else %}Fridge{% endif %}</a>
     </div>
 
     <div class="card">
