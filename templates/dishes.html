@@ -24,30 +24,44 @@
     </nav>
 
     <div class="container">
-        <div class="card" id="delete-section">
-            <div class="card-head">{{ ic.icon("list", 20) }}<h2>删除已保存的菜</h2></div>
-            <p class="section-hint">删除一个菜，会同时删掉它在所有菜单里的记录。</p>
+        <div class="card" id="manage">
+            <div class="card-head">{{ ic.icon("list", 20) }}<h2>管理菜品</h2></div>
+            <p class="section-hint">可以给每道菜选分类，或删除（删除会同时清掉它在所有菜单里的记录）。</p>
 
             <form action="/dishes" method="get" style="margin-bottom:16px;">
                 <div style="display:flex; gap:8px;">
-                    <input type="text" name="search" value="{{ search_query }}" placeholder="搜索要删除的菜，例如：米饭">
+                    <input type="text" name="search" value="{{ search_query }}" placeholder="搜索菜名，例如：米饭">
                     <button class="btn-ghost" type="submit">{{ ic.icon("search", 16) }}</button>
                 </div>
             </form>
 
-            {% if filtered_dishes %}
-                {% for dish in filtered_dishes %}
+            {% if dish_groups %}
+                {% for g in dish_groups %}
+                <div class="cat-title">{{ g['label'] }}</div>
+                {% for dish in g['items'] %}
                 <div class="delete-item">
                     <div>
                         <strong>{{ dish['name_zh'] }}</strong>
                         <div class="en">{{ dish['name_en'] }}</div>
                     </div>
-                    <form action="/delete_dish" method="post" onsubmit="return confirm('确定删除这个菜吗？');">
-                        <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
-                        <input type="hidden" name="search" value="{{ search_query }}">
-                        <button class="btn-danger btn-sm" type="submit">{{ ic.icon("trash", 14) }} 删除</button>
-                    </form>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <form action="/set_dish_category" method="post">
+                            <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
+                            <input type="hidden" name="search" value="{{ search_query }}">
+                            <select name="category" class="cat-select" onchange="this.form.submit()">
+                                {% for c in dish_categories %}
+                                <option value="{{ c }}" {% if c == dish['category'] %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        <form action="/delete_dish" method="post" onsubmit="return confirm('确定删除这个菜吗？');">
+                            <input type="hidden" name="dish_id" value="{{ dish['id'] }}">
+                            <input type="hidden" name="search" value="{{ search_query }}">
+                            <button class="btn-danger btn-sm" type="submit">{{ ic.icon("trash", 14) }}</button>
+                        </form>
+                    </div>
                 </div>
+                {% endfor %}
                 {% endfor %}
             {% else %}
                 <p class="empty">没有找到匹配的菜。</p>

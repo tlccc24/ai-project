@@ -17,10 +17,12 @@
     'fridge': '冰箱库存' if lang == 'zh' else 'Fridge',
     'inventory': '现有库存' if lang == 'zh' else 'Current Inventory',
     'inv_hint': '点一下就能改：绿 = 有，橙 = 不多，灰 = 没有。' if lang == 'zh' else 'Tap to set: green = have, orange = low, gray = none.',
+    'jump': '快速跳到：' if lang == 'zh' else 'Jump to:',
     'add': '添加食材' if lang == 'zh' else 'Add Ingredient',
-    'add_hint': ('新加的食材会放进“其他”，默认标为“有”。可一次输入多个，用 /、逗号、顿号或换行分开。'
+    'add_cat': '分到哪一类' if lang == 'zh' else 'Category',
+    'add_hint': ('可一次输入多个，用 /、逗号、顿号或换行分开，默认标为“有”。'
                  if lang == 'zh' else
-                 'New items go under "Other", marked "Have". Add several at once using / , 、 or new lines.'),
+                 'Add several at once using / , 、 or new lines. Marked "Have" by default.'),
     'add_btn': '添加' if lang == 'zh' else 'Add',
     'del_confirm': '确定删除这个食材吗？' if lang == 'zh' else 'Delete this ingredient?',
 } %}
@@ -52,36 +54,46 @@
             <div class="card-head">{{ ic.icon("fridge", 20) }}<h2>{{ t['inventory'] }}</h2></div>
             <p class="section-hint">{{ t['inv_hint'] }}</p>
 
-            {% for group in fridge_groups %}
-            <div class="cat-title">{{ group['label'] }}</div>
-            {% for item in group['items'] %}
-            <div class="fridge-item">
-                <div class="item-name">
-                    {{ item['name_zh'] if lang == 'zh' else item['name_en'] }}
-                    <small>{{ item['name_en'] if lang == 'zh' else item['name_zh'] }}</small>
-                </div>
-                <div class="seg">
-                    {% for st in statuses %}
-                    <form action="/fridge_update" method="post">
-                        <input type="hidden" name="side" value="{{ side }}">
-                        <input type="hidden" name="lang" value="{{ lang }}">
-                        <input type="hidden" name="item_id" value="{{ item['id'] }}">
-                        <input type="hidden" name="status" value="{{ st }}">
-                        <button type="submit"
-                            class="{% if item['status'] == st %}{% if st == '有' %}on-have{% elif st == '不多' %}on-low{% else %}on-none{% endif %}{% endif %}">
-                            {{ st if lang == 'zh' else status_en[st] }}
-                        </button>
-                    </form>
-                    {% endfor %}
-                    <form action="/fridge_delete" method="post" onsubmit="return confirm('{{ t['del_confirm'] }}');">
-                        <input type="hidden" name="side" value="{{ side }}">
-                        <input type="hidden" name="lang" value="{{ lang }}">
-                        <input type="hidden" name="item_id" value="{{ item['id'] }}">
-                        <button class="row-del" type="submit">{{ ic.icon("x", 17) }}</button>
-                    </form>
-                </div>
+            {% if fridge_groups %}
+            <div class="jumpbar" aria-label="{{ t['jump'] }}">
+                {% for group in fridge_groups %}
+                <a href="#cat-{{ loop.index }}">{{ group['label'] }}</a>
+                {% endfor %}
             </div>
-            {% endfor %}
+            {% endif %}
+
+            {% for group in fridge_groups %}
+            <div class="cat-section" id="cat-{{ loop.index }}">
+                <div class="cat-title">{{ group['label'] }}</div>
+                {% for item in group['items'] %}
+                <div class="fridge-item">
+                    <div class="item-name">
+                        {{ item['name_zh'] if lang == 'zh' else item['name_en'] }}
+                        <small>{{ item['name_en'] if lang == 'zh' else item['name_zh'] }}</small>
+                    </div>
+                    <div class="seg">
+                        {% for st in statuses %}
+                        <form class="js-status" action="/fridge_update" method="post">
+                            <input type="hidden" name="side" value="{{ side }}">
+                            <input type="hidden" name="lang" value="{{ lang }}">
+                            <input type="hidden" name="item_id" value="{{ item['id'] }}">
+                            <input type="hidden" name="status" value="{{ st }}">
+                            <button type="submit"
+                                class="{% if item['status'] == st %}{% if st == '有' %}on-have{% elif st == '不多' %}on-low{% else %}on-none{% endif %}{% endif %}">
+                                {{ st if lang == 'zh' else status_en[st] }}
+                            </button>
+                        </form>
+                        {% endfor %}
+                        <form class="js-del" action="/fridge_delete" method="post" data-confirm="{{ t['del_confirm'] }}">
+                            <input type="hidden" name="side" value="{{ side }}">
+                            <input type="hidden" name="lang" value="{{ lang }}">
+                            <input type="hidden" name="item_id" value="{{ item['id'] }}">
+                            <button class="row-del" type="submit">{{ ic.icon("x", 17) }}</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
             {% endfor %}
         </div>
 
@@ -91,6 +103,12 @@
                 <input type="hidden" name="side" value="{{ side }}">
                 <input type="hidden" name="lang" value="{{ lang }}">
                 <input type="text" name="new_ingredient" placeholder="{{ '例如：青椒 / 玉米' if lang == 'zh' else 'e.g. green pepper / corn' }}">
+                <label class="field-label">{{ t['add_cat'] }}</label>
+                <select name="category">
+                    {% for c in add_categories %}
+                    <option value="{{ c['value'] }}">{{ c['label'] }}</option>
+                    {% endfor %}
+                </select>
                 <p class="hint">{{ t['add_hint'] }}</p>
                 <div style="margin-top:12px;">
                     <button class="btn-primary btn-block" type="submit">{{ ic.icon("plus", 16) }} {{ t['add_btn'] }}</button>
@@ -99,5 +117,7 @@
         </div>
 
     </div>
+
+    <script src="{{ url_for('static', filename='fridge.js') }}"></script>
 </body>
 </html>

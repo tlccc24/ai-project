@@ -194,6 +194,19 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 .glance-group { margin-top: 10px; }
 .glance-group .gl-title { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
 
+/* ---------- Category jump-bar ---------- */
+.jumpbar { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.jumpbar::-webkit-scrollbar { display: none; }
+.jumpbar a {
+    flex: 0 0 auto; text-decoration: none; font-size: 13px; font-weight: 650;
+    color: var(--accent-ink); background: var(--accent-tint);
+    padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+}
+.cat-section { scroll-margin-top: 78px; }
+
+/* category dropdown (manage dishes) */
+.cat-select { font-size: 13px; padding: 8px 28px 8px 10px; border-radius: 999px; width: auto; }
+
 /* ---------- Fridge inventory (segmented) ---------- */
 .cat-title { font-size: 12.5px; font-weight: 800; letter-spacing: .02em; color: var(--muted); margin: 18px 0 2px; }
 .cat-title:first-child { margin-top: 4px; }

@@ -111,14 +111,17 @@
                 <input type="time" name="meal_time">
 
                 <label class="field-label">选择菜品</label>
+                {% for g in dish_groups %}
+                <div class="cat-title">{{ g['label'] }}</div>
                 <div class="dish-grid">
-                    {% for dish in dishes %}
+                    {% for dish in g['items'] %}
                     <label class="dish-item">
                         <input type="checkbox" name="today_dishes" value="{{ dish['name_zh'] }}">
                         <span>{{ dish['name_zh'] }}</span>
                     </label>
                     {% endfor %}
                 </div>
+                {% endfor %}
 
                 <label class="field-label">自定义菜名</label>
                 <input type="text" name="today_custom_dish" placeholder="例如：炒鸡蛋 / 番茄炒蛋">

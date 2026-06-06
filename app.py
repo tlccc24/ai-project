@@ -117,6 +117,17 @@ PRESET_INGREDIENTS = {
     "调味": ["酱油", "盐", "食用油", "葱", "姜", "蒜"],
 }
 
+# --- Dish categories ---
+
+DISH_CATEGORIES = ["主食", "荤菜", "素菜", "汤", "其他"]
+CUSTOM_DISH_CATEGORY = "其他"
+PRESET_DISH_CATEGORY = {
+    "白饭": "主食", "面": "主食", "粥": "主食",
+    "鸡肉": "荤菜", "鱼": "荤菜", "蒸鱼": "荤菜",
+    "青菜": "素菜", "番茄炒蛋": "素菜",
+    "汤": "汤", "排骨汤": "汤",
+}
+
 
 def now_local():
     return datetime.now(APP_TIMEZONE)
@@ -223,12 +234,13 @@ def init_db():
 
     ensure_column_exists(conn, "planned_orders", "meal_time", "TEXT")
     ensure_column_exists(conn, "dishes", "order_count", "INTEGER DEFAULT 0")
+    ensure_column_exists(conn, "dishes", "category", "TEXT DEFAULT '其他'")
 
     for dish_zh in PRESET_DISHES_ZH:
         dish_en = translate_to_english(dish_zh)
         cur.execute(
-            "INSERT OR IGNORE INTO dishes (name_zh, name_en) VALUES (?, ?)",
-            (dish_zh, dish_en),
+            "INSERT OR IGNORE INTO dishes (name_zh, name_en, category) VALUES (?, ?, ?)",
+            (dish_zh, dish_en, PRESET_DISH_CATEGORY.get(dish_zh, CUSTOM_DISH_CATEGORY)),
         )
 
     for category, ingredients in PRESET_INGREDIENTS.items():
@@ -271,10 +283,19 @@ def upsert_dish(cur, dish_zh: str) -> str:
 def get_all_dishes():
     conn = get_conn()
     rows = conn.execute(
-        "SELECT id, name_zh, name_en FROM dishes ORDER BY id ASC"
+        "SELECT id, name_zh, name_en, category FROM dishes ORDER BY id ASC"
     ).fetchall()
     conn.close()
     return rows
+
+
+def build_dish_groups(dishes):
+    """Group dishes by category, preserving DISH_CATEGORIES order."""
+    groups = {c: [] for c in DISH_CATEGORIES}
+    for d in dishes:
+        cat = d["category"] if d["category"] in groups else CUSTOM_DISH_CATEGORY
+        groups[cat].append(d)
+    return [{"label": c, "items": groups[c]} for c in DISH_CATEGORIES if groups[c]]
 
 
 def get_planned_orders_between(start_date: str, end_date: str):
@@ -451,17 +472,19 @@ def set_fridge_status(item_id: str, status: str):
     conn.close()
 
 
-def add_fridge_items(raw_text: str):
+def add_fridge_items(raw_text: str, category: str = CUSTOM_FRIDGE_CATEGORY):
     names = split_custom_dishes(raw_text)
     if not names:
         return
+    if category not in FRIDGE_CATEGORIES:
+        category = CUSTOM_FRIDGE_CATEGORY
     conn = get_conn()
     cur = conn.cursor()
     for name_zh in names:
         name_en = TRANSLATIONS.get(name_zh) or translate_to_english(name_zh)
         cur.execute(
             "INSERT OR IGNORE INTO fridge_items (name_zh, name_en, category, status) VALUES (?, ?, ?, ?)",
-            (name_zh, name_en, CUSTOM_FRIDGE_CATEGORY, "有"),
+            (name_zh, name_en, category, "有"),
         )
     conn.commit()
     conn.close()
@@ -629,6 +652,7 @@ def render_order(recommendation=None, rec_meal_type=""):
     return render_template(
         "order.html",
         dishes=dishes,
+        dish_groups=build_dish_groups(dishes),
         today_str=today.isoformat(),
         tomorrow_str=tomorrow.isoformat(),
         day_after_str=day_after.isoformat(),
@@ -691,6 +715,7 @@ def plans():
     return render_template(
         "plans.html",
         dishes=dishes,
+        dish_groups=build_dish_groups(dishes),
         meal_types=MEAL_TYPES,
         default_plan_date=today,
         grouped_plans=grouped_plans,
@@ -743,9 +768,23 @@ def dishes_page():
 
     return render_template(
         "dishes.html",
-        filtered_dishes=filtered_dishes,
+        dish_groups=build_dish_groups(filtered_dishes),
+        dish_categories=DISH_CATEGORIES,
         search_query=search_query,
     )
+
+
+@app.route("/set_dish_category", methods=["POST"])
+def set_dish_category():
+    dish_id = request.form.get("dish_id", "").strip()
+    category = request.form.get("category", "").strip()
+    search_query = request.form.get("search", "").strip()
+    if dish_id and category in DISH_CATEGORIES:
+        conn = get_conn()
+        conn.execute("UPDATE dishes SET category = ? WHERE id = ?", (category, dish_id))
+        conn.commit()
+        conn.close()
+    return redirect(url_for("dishes_page", search=search_query) + "#manage")
 
 
 @app.route("/delete_dish", methods=["POST"])
@@ -770,7 +809,7 @@ def delete_dish():
 
         conn.close()
 
-    return redirect(url_for("dishes_page", search=search_query) + "#delete-section")
+    return redirect(url_for("dishes_page", search=search_query) + "#manage")
 
 
 # ===== Helper (Maid) side =====
@@ -806,11 +845,16 @@ def dashboard():
 def render_fridge(lang, side):
     rows = get_fridge_items()
     fridge_groups = build_fridge_groups(rows, lang=lang)
+    add_categories = [
+        {"value": c, "label": c if lang == "zh" else FRIDGE_CATEGORY_EN[c]}
+        for c in FRIDGE_CATEGORIES
+    ]
     return render_template(
         "fridge.html",
         lang=lang,
         side=side,
         fridge_groups=fridge_groups,
+        add_categories=add_categories,
         statuses=FRIDGE_STATUSES,
         status_en=FRIDGE_STATUS_EN,
     )
@@ -823,6 +867,10 @@ def fridge():
     return render_fridge(lang, side)
 
 
+def _is_xhr():
+    return request.headers.get("X-Requested-With") == "fetch"
+
+
 @app.route("/fridge_update", methods=["POST"])
 def fridge_update():
     side = _normalize_side(request.form.get("side"))
@@ -831,6 +879,8 @@ def fridge_update():
     status = request.form.get("status", "").strip()
     if item_id and status:
         set_fridge_status(item_id, status)
+    if _is_xhr():
+        return ("", 204)
     return redirect(url_for("fridge", lang=lang, side=side) + "#fridge-list")
 
 
@@ -838,7 +888,8 @@ def fridge_update():
 def fridge_add():
     side = _normalize_side(request.form.get("side"))
     lang = _normalize_lang(request.form.get("lang"))
-    add_fridge_items(request.form.get("new_ingredient", "").strip())
+    category = request.form.get("category", CUSTOM_FRIDGE_CATEGORY).strip()
+    add_fridge_items(request.form.get("new_ingredient", "").strip(), category)
     return redirect(url_for("fridge", lang=lang, side=side) + "#fridge-list")
 
 
@@ -849,6 +900,8 @@ def fridge_delete():
     item_id = request.form.get("item_id", "").strip()
     if item_id:
         delete_fridge_item(item_id)
+    if _is_xhr():
+        return ("", 204)
     return redirect(url_for("fridge", lang=lang, side=side) + "#fridge-list")
 
 
