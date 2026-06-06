@@ -4,277 +4,86 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if lang == 'zh' %}冰箱库存{% else %}Fridge Inventory{% endif %}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 920px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f7f7f7;
-        }
-        h1, h2, h3 {
-            color: #222;
-        }
-        .card {
-            background: #fff;
-            border-radius: 14px;
-            padding: 18px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-        }
-        .top-links a, .lang-switch a {
-            margin-right: 16px;
-            font-size: 18px;
-        }
-        input[type="text"], select {
-            width: 100%;
-            font-size: 20px;
-            padding: 14px;
-            border-radius: 12px;
-            border: 1px solid #ccc;
-            box-sizing: border-box;
-        }
-        button {
-            font-size: 18px;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-        }
-        .submit-btn {
-            background: #1677ff;
-            color: white;
-            font-size: 20px;
-            padding: 12px 18px;
-        }
-        .hint {
-            color: #666;
-            font-size: 16px;
-        }
-        .empty {
-            color: #777;
-            font-size: 18px;
-        }
-        .category-block {
-            margin-bottom: 18px;
-        }
-        .fridge-item {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            border: 1px solid #ddd;
-            border-radius: 12px;
-            padding: 12px 14px;
-            margin-bottom: 10px;
-        }
-        .item-name {
-            font-size: 22px;
-            min-width: 120px;
-        }
-        .item-name small {
-            display: block;
-            color: #888;
-            font-size: 15px;
-        }
-        .status-group {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .status-group form {
-            margin: 0;
-        }
-        .status-btn {
-            border: 1px solid #ccc;
-            background: #fff;
-            color: #444;
-            font-size: 16px;
-            padding: 10px 14px;
-        }
-        .status-btn.active-have { background: #2e9e5b; color: #fff; border-color: #2e9e5b; }
-        .status-btn.active-low  { background: #e6912b; color: #fff; border-color: #e6912b; }
-        .status-btn.active-none { background: #888;    color: #fff; border-color: #888; }
-        .row-delete-btn {
-            background: none;
-            color: #c0392b;
-            font-size: 15px;
-            padding: 6px 8px;
-        }
-        .suggestion {
-            border: 1px solid #ddd;
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 12px;
-        }
-        .suggestion ul {
-            font-size: 20px;
-            line-height: 1.7;
-            margin: 8px 0;
-        }
-        .add-today-btn {
-            background: #2e9e5b;
-            color: #fff;
-            font-size: 17px;
-        }
-        .buy-list {
-            font-size: 19px;
-            line-height: 1.7;
-        }
-        .err {
-            color: #c0392b;
-            font-size: 18px;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="role-cook">
     {% set t = {
         'title': '冰箱库存' if lang == 'zh' else 'Fridge Inventory',
-        'home': '返回首页' if lang == 'zh' else 'Home',
-        'plans': '未来菜单' if lang == 'zh' else 'Plans',
+        'home': '首页' if lang == 'zh' else 'Home',
+        'today': '今天做什么' if lang == 'zh' else 'Today',
+        'fridge': '冰箱库存' if lang == 'zh' else 'Fridge',
         'inventory': '现有库存' if lang == 'zh' else 'Current Inventory',
+        'inv_hint': '点一下就能改：绿=有，橙=不多，灰=没有。' if lang == 'zh' else 'Tap to set: green = have, orange = low, gray = none.',
         'add': '添加食材' if lang == 'zh' else 'Add Ingredient',
         'add_hint': ('新加的食材会放进“其他”，默认标为“有”。可一次输入多个，用 /、逗号、顿号或换行分开。'
                      if lang == 'zh' else
                      'New items go under "Other", marked "Have". Add several at once using / , 、 or new lines.'),
         'add_btn': '添加' if lang == 'zh' else 'Add',
-        'delete_confirm': '确定删除这个食材吗？' if lang == 'zh' else 'Delete this ingredient?',
-        'ai_title': 'AI 推荐今天吃什么' if lang == 'zh' else 'AI: What to Cook Today',
-        'ai_hint': ('根据冰箱里现有的食材推荐，并提示需要采购的东西。'
-                    if lang == 'zh' else
-                    'Suggests meals from what is in the fridge and what to buy.'),
-        'meal': '餐别' if lang == 'zh' else 'Meal',
-        'ai_btn': '让 AI 推荐' if lang == 'zh' else 'Get AI Suggestions',
-        'add_today': '加入今天' if lang == 'zh' else 'Add to Today',
-        'to_buy': '建议采购' if lang == 'zh' else 'Suggested Shopping',
-        'no_sug': 'AI 暂时没有给出建议，请稍后再试。' if lang == 'zh' else 'No suggestions right now, please try again.',
-        'empty_fridge': '冰箱里还没有标记“有”或“不多”的食材，请先更新库存。' if lang == 'zh' else 'Mark some items as Have/Low first, then ask the AI.',
-        'ai_failed': 'AI 暂时无法连接，请稍后再试。' if lang == 'zh' else 'Could not reach the AI, please try again later.',
+        'del_confirm': '确定删除这个食材吗？' if lang == 'zh' else 'Delete this ingredient?',
     } %}
 
-    <h1>{{ t['title'] }}</h1>
-
-    <div class="card top-links">
-        <a href="/">{{ t['home'] }}</a>
-        <a href="/plans">{{ t['plans'] }}</a>
-        <span class="lang-switch">
-            <a href="/fridge?lang=zh">中文</a>
-            <a href="/fridge?lang=en">English</a>
-        </span>
+    <div class="appbar">
+        <div class="appbar-inner">
+            <h1>🧊 {{ t['title'] }}</h1>
+            <a class="home-link" href="/">🏠 {{ t['home'] }}</a>
+        </div>
     </div>
 
-    <!-- AI recommendation -->
-    <div class="card" id="ai-section">
-        <h2>{{ t['ai_title'] }}</h2>
-        <p class="hint">{{ t['ai_hint'] }}</p>
-        <form action="/recommend" method="post">
-            <input type="hidden" name="lang" value="{{ lang }}">
-            <label>{{ t['meal'] }}</label>
-            <select name="meal_type" required>
-                {% for mt in meal_types %}
-                <option value="{{ mt }}" {% if mt == rec_meal_type %}selected{% endif %}>
-                    {{ mt if lang == 'zh' else meal_type_en[mt] }}
-                </option>
-                {% endfor %}
-            </select>
-            <div style="margin-top:14px;">
-                <button class="submit-btn" type="submit">{{ t['ai_btn'] }}</button>
-            </div>
-        </form>
+    <nav class="tabnav">
+        <a href="/dashboard?lang={{ lang }}">{{ t['today'] }}</a>
+        <a class="active" href="/fridge?lang={{ lang }}">{{ t['fridge'] }}</a>
+        <a href="/fridge?lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
+    </nav>
 
-        {% if recommendation %}
-            {% if recommendation.get('error') == 'empty_fridge' %}
-                <p class="err" style="margin-top:16px;">{{ t['empty_fridge'] }}</p>
-            {% elif recommendation.get('error') %}
-                <p class="err" style="margin-top:16px;">{{ t['ai_failed'] }}</p>
-            {% elif recommendation.get('suggestions') %}
-                <div style="margin-top:16px;">
-                    {% for s in recommendation['suggestions'] %}
-                    <div class="suggestion">
-                        <ul>
-                            {% for d in s['dishes'] %}
-                            <li>{{ d }}</li>
-                            {% endfor %}
-                        </ul>
-                        {% if s['reason'] %}<p class="hint">{{ s['reason'] }}</p>{% endif %}
-                        <form action="/fridge_to_plan" method="post">
-                            <input type="hidden" name="lang" value="{{ lang }}">
-                            <input type="hidden" name="meal_type" value="{{ rec_meal_type }}">
-                            <input type="hidden" name="dishes" value="{{ s['dishes'] | join(',') }}">
-                            <button class="add-today-btn" type="submit">
-                                {{ t['add_today'] }}（{{ rec_meal_type if lang == 'zh' else meal_type_en[rec_meal_type] }}）
-                            </button>
-                        </form>
-                    </div>
-                    {% endfor %}
+    <div class="container">
 
-                    {% if recommendation.get('to_buy') %}
-                    <h3>{{ t['to_buy'] }}</h3>
-                    <ul class="buy-list">
-                        {% for item in recommendation['to_buy'] %}
-                        <li>{{ item }}</li>
-                        {% endfor %}
-                    </ul>
-                    {% endif %}
-                </div>
-            {% else %}
-                <p class="err" style="margin-top:16px;">{{ t['no_sug'] }}</p>
-            {% endif %}
-        {% endif %}
-    </div>
+        <div class="card" id="fridge-list">
+            <h2>📦 {{ t['inventory'] }}</h2>
+            <p class="section-hint">{{ t['inv_hint'] }}</p>
 
-    <!-- Inventory -->
-    <div class="card" id="fridge-list">
-        <h2>{{ t['inventory'] }}</h2>
-
-        {% for group in fridge_groups %}
-        <div class="category-block">
-            <h3>{{ group['label'] }}</h3>
+            {% for group in fridge_groups %}
+            <div class="cat-title">{{ group['label'] }}</div>
             {% for item in group['items'] %}
             <div class="fridge-item">
                 <div class="item-name">
                     {{ item['name_zh'] if lang == 'zh' else item['name_en'] }}
                     <small>{{ item['name_en'] if lang == 'zh' else item['name_zh'] }}</small>
                 </div>
-                <div class="status-group">
+                <div class="seg">
                     {% for st in statuses %}
                     <form action="/fridge_update" method="post">
                         <input type="hidden" name="lang" value="{{ lang }}">
                         <input type="hidden" name="item_id" value="{{ item['id'] }}">
                         <input type="hidden" name="status" value="{{ st }}">
                         <button type="submit"
-                            class="status-btn
-                            {%- if item['status'] == st %}
-                                {%- if st == '有' %} active-have
-                                {%- elif st == '不多' %} active-low
-                                {%- else %} active-none{% endif %}
-                            {%- endif %}">
+                            class="{% if item['status'] == st %}{% if st == '有' %}on-have{% elif st == '不多' %}on-low{% else %}on-none{% endif %}{% endif %}">
                             {{ st if lang == 'zh' else status_en[st] }}
                         </button>
                     </form>
                     {% endfor %}
-                    <form action="/fridge_delete" method="post" onsubmit="return confirm('{{ t['delete_confirm'] }}');">
+                    <form action="/fridge_delete" method="post" onsubmit="return confirm('{{ t['del_confirm'] }}');">
                         <input type="hidden" name="lang" value="{{ lang }}">
                         <input type="hidden" name="item_id" value="{{ item['id'] }}">
-                        <button class="row-delete-btn" type="submit">✕</button>
+                        <button class="row-del" type="submit">✕</button>
                     </form>
                 </div>
             </div>
             {% endfor %}
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
 
-    <!-- Add ingredient -->
-    <div class="card">
-        <h2>{{ t['add'] }}</h2>
-        <form action="/fridge_add" method="post">
-            <input type="hidden" name="lang" value="{{ lang }}">
-            <input type="text" name="new_ingredient" placeholder="{{ '例如：青椒/玉米' if lang == 'zh' else 'e.g. green pepper / corn' }}">
-            <p class="hint">{{ t['add_hint'] }}</p>
-            <button class="submit-btn" type="submit">{{ t['add_btn'] }}</button>
-        </form>
+        <div class="card">
+            <h2>➕ {{ t['add'] }}</h2>
+            <form action="/fridge_add" method="post">
+                <input type="hidden" name="lang" value="{{ lang }}">
+                <input type="text" name="new_ingredient" placeholder="{{ '例如：青椒/玉米' if lang == 'zh' else 'e.g. green pepper / corn' }}">
+                <p class="hint">{{ t['add_hint'] }}</p>
+                <div style="margin-top:12px;">
+                    <button class="btn-primary btn-block" type="submit">{{ t['add_btn'] }}</button>
+                </div>
+            </form>
+        </div>
+
     </div>
 </body>
 </html>

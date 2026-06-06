@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点菜 · 妈妈</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="role-mom">
+    {% set meal_emoji = {'早餐':'🌅','午餐':'☀️','晚餐':'🌙'} %}
+
+    <div class="appbar">
+        <div class="appbar-inner">
+            <h1>👩 妈妈 · 点菜</h1>
+            <a class="home-link" href="/">🏠 首页</a>
+        </div>
+    </div>
+
+    <nav class="tabnav">
+        <a class="active" href="/order">点餐</a>
+        <a href="/plans">未来菜单</a>
+        <a href="/dishes">管理菜品</a>
+    </nav>
+
+    <div class="container">
+
+        <!-- AI recommendation -->
+        <div class="card" id="ai-section">
+            <h2>🤖 AI 推荐今天吃什么</h2>
+            <p class="section-hint">根据冰箱里现有的食材推荐，并提示需要采购的东西。</p>
+            <form action="/recommend" method="post">
+                <label class="field-label">想做哪一餐？</label>
+                <select name="meal_type" required>
+                    {% for mt in meal_types %}
+                    <option value="{{ mt }}" {% if mt == rec_meal_type %}selected{% endif %}>{{ meal_emoji[mt] }} {{ mt }}</option>
+                    {% endfor %}
+                </select>
+                <div style="margin-top:14px;">
+                    <button class="btn-primary btn-block" type="submit">让 AI 推荐</button>
+                </div>
+            </form>
+
+            {% if recommendation %}
+                {% if recommendation.get('error') == 'empty_fridge' %}
+                    <p class="alert" style="margin-top:16px;">冰箱里还没有标记“有”或“不多”的食材。请先让佣人更新冰箱库存。</p>
+                {% elif recommendation.get('error') %}
+                    <p class="alert" style="margin-top:16px;">AI 暂时无法连接，请稍后再试。</p>
+                {% elif recommendation.get('suggestions') %}
+                    <div style="margin-top:16px;">
+                        {% for s in recommendation['suggestions'] %}
+                        <div class="suggestion">
+                            <ul>
+                                {% for d in s['dishes'] %}<li>{{ d }}</li>{% endfor %}
+                            </ul>
+                            {% if s['reason'] %}<p class="hint">{{ s['reason'] }}</p>{% endif %}
+                            <form action="/recommend_to_plan" method="post" style="margin-top:10px;">
+                                <input type="hidden" name="meal_type" value="{{ rec_meal_type }}">
+                                <input type="hidden" name="dishes" value="{{ s['dishes'] | join(',') }}">
+                                <button class="btn-success btn-sm" type="submit">＋ 加入今天（{{ rec_meal_type }}）</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+
+                        {% if recommendation.get('to_buy') %}
+                        <h3 style="margin-top:14px;">🛒 建议采购</h3>
+                        <ul class="buy-list">
+                            {% for item in recommendation['to_buy'] %}<li>{{ item }}</li>{% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="alert" style="margin-top:16px;">AI 暂时没有给出建议，请稍后再试。</p>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <!-- Order form -->
+        <div class="card" id="order-section">
+            <h2>📝 今日点餐</h2>
+            <form action="/today_order" method="post">
+                <label class="field-label">日期</label>
+                <select name="meal_date" required>
+                    <option value="{{ today_str }}">今天（{{ today_str }}）</option>
+                    <option value="{{ tomorrow_str }}">明天（{{ tomorrow_str }}）</option>
+                    <option value="{{ day_after_str }}">后天（{{ day_after_str }}）</option>
+                </select>
+
+                <label class="field-label">餐别</label>
+                <select name="meal_type" required>
+                    {% for meal_type in meal_types %}
+                    <option value="{{ meal_type }}">{{ meal_emoji[meal_type] }} {{ meal_type }}</option>
+                    {% endfor %}
+                </select>
+
+                <label class="field-label">开饭时间（可不选）</label>
+                <input type="time" name="meal_time">
+                <p class="hint">如果不选时间，佣人页面不会显示开饭时间。</p>
+
+                <h3 style="margin-top:18px;">选择菜品</h3>
+                <div class="dish-grid">
+                    {% for dish in dishes %}
+                    <label class="dish-item">
+                        <input type="checkbox" name="today_dishes" value="{{ dish['name_zh'] }}">
+                        <span>{{ dish['name_zh'] }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <h3 style="margin-top:18px;">自定义菜名</h3>
+                <input type="text" name="today_custom_dish" placeholder="例如：炒鸡蛋/番茄炒蛋">
+                <p class="hint">可一次输入多个菜，用 /、逗号、顿号或换行分开。</p>
+
+                <div style="margin-top:18px;">
+                    <button class="btn-primary btn-block" type="submit">保存这一天这顿</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Today's menu -->
+        <div class="card" id="today-menu">
+            <h2>🍚 今日菜单（{{ today_str }}）</h2>
+            {% for meal_type in meal_types %}
+            <div class="meal-card">
+                <h3>{{ meal_emoji[meal_type] }} {{ meal_type }}</h3>
+                {% if today_meals[meal_type]["meal_time"] %}
+                    <p class="meal-time">开饭时间：{{ today_meals[meal_type]["meal_time"] }}</p>
+                {% endif %}
+                {% if today_meals[meal_type]["dishes"] %}
+                    <ul>{% for dish in today_meals[meal_type]["dishes"] %}<li>{{ dish }}</li>{% endfor %}</ul>
+                {% else %}
+                    <p class="empty">未点菜</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Next two days -->
+        <div class="card">
+            <h2>📅 未来两天预览</h2>
+
+            <div class="date-block">
+                <h3>明天（{{ tomorrow_str }}）</h3>
+                {% for meal_type in meal_types %}
+                    <div class="meal-card">
+                        <h3>{{ meal_emoji[meal_type] }} {{ meal_type }}</h3>
+                        {% if tomorrow_meals[meal_type]["meal_time"] %}<p class="meal-time">开饭时间：{{ tomorrow_meals[meal_type]["meal_time"] }}</p>{% endif %}
+                        {% if tomorrow_meals[meal_type]["dishes"] %}
+                            <ul>{% for dish in tomorrow_meals[meal_type]["dishes"] %}<li>{{ dish }}</li>{% endfor %}</ul>
+                        {% else %}<p class="empty">未点菜</p>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="date-block">
+                <h3>后天（{{ day_after_str }}）</h3>
+                {% for meal_type in meal_types %}
+                    <div class="meal-card">
+                        <h3>{{ meal_emoji[meal_type] }} {{ meal_type }}</h3>
+                        {% if day_after_meals[meal_type]["meal_time"] %}<p class="meal-time">开饭时间：{{ day_after_meals[meal_type]["meal_time"] }}</p>{% endif %}
+                        {% if day_after_meals[meal_type]["dishes"] %}
+                            <ul>{% for dish in day_after_meals[meal_type]["dishes"] %}<li>{{ dish }}</li>{% endfor %}</ul>
+                        {% else %}<p class="empty">未点菜</p>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

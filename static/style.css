@@ -1,0 +1,314 @@
+/* ============================================================
+   家庭点菜系统 — shared stylesheet
+   Mobile-first, responsive. Role themes set --accent via body class.
+   ============================================================ */
+
+:root {
+    --bg: #f1f3f6;
+    --card: #ffffff;
+    --text: #1b2433;
+    --muted: #6b7685;
+    --border: #e4e8ef;
+    --radius: 18px;
+    --radius-sm: 12px;
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.06);
+    --shadow-sm: 0 1px 2px rgba(16,24,40,.06);
+
+    /* default (neutral / landing) */
+    --accent: #4c6ef5;
+    --accent-dark: #3b5bdb;
+    --accent-soft: #edf2ff;
+
+    /* fridge status colors */
+    --have: #2f9e44;   --have-soft: #e7f7ec;
+    --low: #e8870c;    --low-soft: #fff4e2;
+    --none: #98a2b3;   --none-soft: #f1f3f5;
+}
+
+/* Role themes */
+body.role-mom  { --accent: #f0683b; --accent-dark: #e8590c; --accent-soft: #fff0ea; }
+body.role-cook { --accent: #0ca5a5; --accent-dark: #0b8c8c; --accent-soft: #e3f7f7; }
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+                 "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    margin: 0;
+    padding: 0 0 40px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+.container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+/* ---------- Top app bar ---------- */
+.appbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--accent);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+}
+.appbar-inner {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.appbar h1 {
+    font-size: 20px;
+    margin: 0;
+    color: #fff;
+    font-weight: 700;
+}
+.appbar .home-link {
+    color: #fff;
+    text-decoration: none;
+    font-size: 15px;
+    background: rgba(255,255,255,.18);
+    padding: 8px 14px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+/* ---------- Tab nav ---------- */
+.tabnav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 12px 16px 0;
+    max-width: 760px;
+    margin: 0 auto;
+    -webkit-overflow-scrolling: touch;
+}
+.tabnav a {
+    flex: 0 0 auto;
+    text-decoration: none;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.tabnav a.active {
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* ---------- Cards ---------- */
+.card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+.card h2 {
+    font-size: 19px;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.card h3 { font-size: 17px; margin: 0 0 8px; }
+.section-hint { color: var(--muted); font-size: 14px; margin: -6px 0 14px; }
+
+/* ---------- Forms ---------- */
+label.field-label {
+    display: block;
+    font-weight: 600;
+    font-size: 15px;
+    margin: 14px 0 6px;
+}
+label.field-label:first-child { margin-top: 0; }
+
+input[type="text"], input[type="date"], input[type="time"], select {
+    width: 100%;
+    font-size: 17px;
+    padding: 13px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    box-sizing: border-box;
+}
+input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+
+/* ---------- Buttons ---------- */
+button, .btn {
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 600;
+    padding: 13px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: #eceff3;
+    color: var(--text);
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:active { background: var(--accent-dark); }
+.btn-block { display: block; width: 100%; }
+.btn-success { background: var(--have); color: #fff; }
+.btn-danger { background: #fff; color: #e03131; border: 1px solid #ffd5d5; }
+.btn-sm { font-size: 14px; padding: 9px 13px; }
+
+/* ---------- Dish checkbox grid ---------- */
+.dish-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+@media (max-width: 460px) { .dish-grid { grid-template-columns: 1fr; } }
+
+label.dish-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    cursor: pointer;
+}
+label.dish-item:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+
+/* ---------- Meal blocks ---------- */
+.meal-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    margin-bottom: 12px;
+}
+.meal-card:last-child { margin-bottom: 0; }
+.meal-card h3 { margin: 0 0 6px; }
+.meal-card ul { margin: 6px 0 0; padding-left: 22px; font-size: 17px; line-height: 1.7; }
+.meal-time { color: var(--accent-dark); font-weight: 600; font-size: 15px; }
+.empty { color: var(--muted); font-size: 15px; margin: 4px 0 0; }
+
+.date-block {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    margin-bottom: 14px;
+}
+.date-block h3 { color: var(--accent-dark); }
+
+/* ---------- Fridge: segmented status control ---------- */
+.fridge-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+.fridge-item:last-child { border-bottom: none; }
+.item-name { font-size: 17px; font-weight: 600; }
+.item-name small { display: block; color: var(--muted); font-size: 13px; font-weight: 400; }
+
+.seg { display: flex; gap: 6px; align-items: center; }
+.seg form { margin: 0; }
+.seg button {
+    background: #f4f6f8;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-weight: 600;
+}
+.seg button.on-have { background: var(--have); color: #fff; border-color: var(--have); }
+.seg button.on-low  { background: var(--low);  color: #fff; border-color: var(--low); }
+.seg button.on-none { background: var(--none); color: #fff; border-color: var(--none); }
+.row-del {
+    background: none; color: #c0392b; font-size: 18px;
+    padding: 4px 8px; line-height: 1;
+}
+
+/* category sub-heading inside a card */
+.cat-title {
+    font-size: 15px; font-weight: 700; color: var(--muted);
+    margin: 18px 0 4px; text-transform: none;
+}
+.cat-title:first-child { margin-top: 0; }
+
+/* ---------- AI suggestions ---------- */
+.suggestion {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    margin-bottom: 12px;
+    background: var(--accent-soft);
+}
+.suggestion ul { margin: 0 0 8px; padding-left: 22px; font-size: 17px; line-height: 1.7; }
+.buy-list { font-size: 16px; line-height: 1.7; padding-left: 22px; }
+.alert {
+    background: #fff4e2; border: 1px solid #ffe3b3; color: #9a5b00;
+    padding: 12px 14px; border-radius: var(--radius-sm); font-size: 15px;
+}
+
+/* ---------- Delete list (manage dishes) ---------- */
+.delete-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 14px; margin-bottom: 10px;
+}
+.delete-item .en { color: var(--muted); font-size: 14px; }
+
+/* ---------- Landing / role picker ---------- */
+.landing { min-height: 100vh; display: flex; flex-direction: column; }
+.landing-head { text-align: center; padding: 40px 20px 10px; }
+.landing-head .logo { font-size: 56px; }
+.landing-head h1 { font-size: 26px; margin: 12px 0 4px; }
+.landing-head p { color: var(--muted); margin: 0; }
+.role-cards {
+    flex: 1;
+    display: flex; flex-direction: column; gap: 18px;
+    max-width: 520px; width: 100%; margin: 0 auto; padding: 24px 16px;
+}
+.role-card {
+    display: flex; align-items: center; gap: 18px;
+    text-decoration: none; color: var(--text);
+    background: var(--card); border-radius: 22px;
+    padding: 26px 24px; box-shadow: var(--shadow);
+    border: 2px solid transparent;
+}
+.role-card .emoji { font-size: 46px; }
+.role-card .role-text strong { display: block; font-size: 22px; margin-bottom: 4px; }
+.role-card .role-text span { color: var(--muted); font-size: 15px; }
+.role-card.mom  { border-color: #ffd9cc; }
+.role-card.cook { border-color: #c3eded; }
+.role-card.mom:active  { background: #fff0ea; }
+.role-card.cook:active { background: #e3f7f7; }
+
+.tip-row { text-align: center; padding: 12px; }
+.tip-row .tip { color: var(--muted); font-size: 14px; }

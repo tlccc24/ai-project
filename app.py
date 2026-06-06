@@ -7,6 +7,14 @@ import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+# Load a local .env file if present (keeps OPENAI_API_KEY out of the code).
+# Optional: if python-dotenv isn't installed, just rely on real env vars.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 app = Flask(__name__)
 
 DB_PATH = Path(os.getenv("DB_PATH", "orders.db"))
@@ -545,36 +553,36 @@ def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
     return {"suggestions": suggestions, "to_buy": data.get("to_buy", [])}
 
 
+def _normalize_lang(raw):
+    lang = (raw or "zh").strip().lower()
+    return lang if lang in ("zh", "en") else "zh"
+
+
+# ===== Landing / role picker =====
+
 @app.route("/", methods=["GET"])
-def index():
+def home():
+    return render_template("home.html")
+
+
+# ===== Employer (Mom) side =====
+
+def render_order(recommendation=None, rec_meal_type=""):
     cleanup_past_plans()
 
     dishes = get_all_dishes()
-    search_query = request.args.get("search", "").strip()
-
-    if search_query:
-        filtered_dishes = [
-            dish for dish in dishes
-            if search_query in dish["name_zh"] or search_query.lower() in dish["name_en"].lower()
-        ]
-    else:
-        filtered_dishes = dishes
-
     today = today_local()
     tomorrow = today + timedelta(days=1)
     day_after = today + timedelta(days=2)
 
     rows = get_planned_orders_between(today.isoformat(), day_after.isoformat())
-
     today_meals = build_day_meals_map(rows, today.isoformat(), lang="zh")
     tomorrow_meals = build_day_meals_map(rows, tomorrow.isoformat(), lang="zh")
     day_after_meals = build_day_meals_map(rows, day_after.isoformat(), lang="zh")
 
     return render_template(
-        "index.html",
+        "order.html",
         dishes=dishes,
-        search_query=search_query,
-        filtered_dishes=filtered_dishes,
         today_str=today.isoformat(),
         tomorrow_str=tomorrow.isoformat(),
         day_after_str=day_after.isoformat(),
@@ -582,7 +590,15 @@ def index():
         tomorrow_meals=tomorrow_meals,
         day_after_meals=day_after_meals,
         meal_types=MEAL_TYPES,
+        meal_type_en=MEAL_TYPE_EN,
+        recommendation=recommendation,
+        rec_meal_type=rec_meal_type,
     )
+
+
+@app.route("/order", methods=["GET"])
+def order():
+    return render_order()
 
 
 @app.route("/today_order", methods=["POST"])
@@ -596,7 +612,23 @@ def today_order():
     meal_time = request.form.get("meal_time", "").strip()
 
     save_meal(meal_date, meal_type_zh, selected_dishes_zh, custom_dish_raw, meal_time)
-    return redirect(url_for("index") + "#order-section")
+    return redirect(url_for("order") + "#order-section")
+
+
+@app.route("/recommend", methods=["POST"])
+def recommend():
+    meal_type_zh = request.form.get("meal_type", "").strip()
+    recommendation = get_ai_recommendation(meal_type_zh, lang="zh")
+    return render_order(recommendation=recommendation, rec_meal_type=meal_type_zh)
+
+
+@app.route("/recommend_to_plan", methods=["POST"])
+def recommend_to_plan():
+    meal_type_zh = request.form.get("meal_type", "").strip()
+    dishes_raw = request.form.get("dishes", "").strip()
+    selected = split_custom_dishes(dishes_raw)
+    save_meal(today_local().isoformat(), meal_type_zh, selected, "", "")
+    return redirect(url_for("order") + "#today-menu")
 
 
 @app.route("/plans", methods=["GET"])
@@ -648,6 +680,26 @@ def delete_plan():
     return redirect(url_for("plans") + "#plans-list")
 
 
+@app.route("/dishes", methods=["GET"])
+def dishes_page():
+    dishes = get_all_dishes()
+    search_query = request.args.get("search", "").strip()
+
+    if search_query:
+        filtered_dishes = [
+            dish for dish in dishes
+            if search_query in dish["name_zh"] or search_query.lower() in dish["name_en"].lower()
+        ]
+    else:
+        filtered_dishes = dishes
+
+    return render_template(
+        "dishes.html",
+        filtered_dishes=filtered_dishes,
+        search_query=search_query,
+    )
+
+
 @app.route("/delete_dish", methods=["POST"])
 def delete_dish():
     dish_id = request.form.get("dish_id", "").strip()
@@ -670,16 +722,16 @@ def delete_dish():
 
         conn.close()
 
-    return redirect(url_for("index", search=search_query) + "#delete-section")
+    return redirect(url_for("dishes_page", search=search_query) + "#delete-section")
 
+
+# ===== Helper (Maid) side =====
 
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
     cleanup_past_plans()
 
-    lang = request.args.get("lang", "en").strip().lower()
-    if lang not in ["zh", "en"]:
-        lang = "en"
+    lang = _normalize_lang(request.args.get("lang"))
 
     today = today_local()
     today_rows = get_planned_orders_between(today.isoformat(), today.isoformat())
@@ -701,12 +753,9 @@ def dashboard():
     )
 
 
-def _normalize_lang(raw):
-    lang = (raw or "zh").strip().lower()
-    return lang if lang in ("zh", "en") else "zh"
+# ===== Fridge (shared inventory, both sides) =====
 
-
-def render_fridge(lang, recommendation=None, rec_meal_type=""):
+def render_fridge(lang):
     rows = get_fridge_items()
     fridge_groups = build_fridge_groups(rows, lang=lang)
     return render_template(
@@ -715,11 +764,6 @@ def render_fridge(lang, recommendation=None, rec_meal_type=""):
         fridge_groups=fridge_groups,
         statuses=FRIDGE_STATUSES,
         status_en=FRIDGE_STATUS_EN,
-        meal_types=MEAL_TYPES,
-        meal_type_en=MEAL_TYPE_EN,
-        today_str=today_local().isoformat(),
-        recommendation=recommendation,
-        rec_meal_type=rec_meal_type,
     )
 
 
@@ -753,24 +797,6 @@ def fridge_delete():
     if item_id:
         delete_fridge_item(item_id)
     return redirect(url_for("fridge", lang=lang) + "#fridge-list")
-
-
-@app.route("/recommend", methods=["POST"])
-def recommend():
-    lang = _normalize_lang(request.form.get("lang"))
-    meal_type_zh = request.form.get("meal_type", "").strip()
-    recommendation = get_ai_recommendation(meal_type_zh, lang=lang)
-    return render_fridge(lang, recommendation=recommendation, rec_meal_type=meal_type_zh)
-
-
-@app.route("/fridge_to_plan", methods=["POST"])
-def fridge_to_plan():
-    lang = _normalize_lang(request.form.get("lang"))
-    meal_type_zh = request.form.get("meal_type", "").strip()
-    dishes_raw = request.form.get("dishes", "").strip()
-    selected = split_custom_dishes(dishes_raw)
-    save_meal(today_local().isoformat(), meal_type_zh, selected, "", "")
-    return redirect(url_for("index") + "#order-section")
 
 
 init_db()
