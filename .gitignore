@@ -1,1 +1,13 @@
 .aider*
+
+# Python
+__pycache__/
+*.pyc
+
+# Local secrets / env
+.env
+
+# Databases (created at runtime; on Render they live on the persistent disk)
+orders.db
+test_fridge.db
+*.db.bak
