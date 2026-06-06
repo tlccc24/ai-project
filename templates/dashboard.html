@@ -38,7 +38,17 @@
                             <span class="mt-time">{{ ic.icon("clock", 13) }} {{ today_meals[meal_label]["meal_time"] }}</span>
                         {% endif %}
                         {% if today_meals[meal_label]["dishes"] %}
-                            <p class="dishes">{% for dish in today_meals[meal_label]["dishes"] %}<span>{{ dish }}</span>{% endfor %}</p>
+                            <ul class="dish-lines">
+                                {% for dish in today_meals[meal_label]["dishes"] %}
+                                <li>
+                                    <span class="d-name">{{ dish }}</span>
+                                    <a class="recipe-link" target="_blank" rel="noopener"
+                                       href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
+                                       {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
                         {% else %}
                             <p class="empty">{% if lang == 'zh' %}未点菜{% else %}No dishes planned{% endif %}</p>
                         {% endif %}
@@ -59,7 +69,17 @@
                         <div class="meal-body">
                             <span class="mt-name">{{ meal_name }}</span>
                             {% if meal_data["meal_time"] %}<span class="mt-time">{{ ic.icon("clock", 13) }} {{ meal_data["meal_time"] }}</span>{% endif %}
-                            <p class="dishes">{% for dish in meal_data["dishes"] %}<span>{{ dish }}</span>{% endfor %}</p>
+                            <ul class="dish-lines">
+                                {% for dish in meal_data["dishes"] %}
+                                <li>
+                                    <span class="d-name">{{ dish }}</span>
+                                    <a class="recipe-link" target="_blank" rel="noopener"
+                                       href="https://www.youtube.com/results?search_query={{ (dish ~ (' recipe' if lang == 'en' else ' 做法')) | urlencode }}">
+                                       {{ ic.icon('play', 14) }} {% if lang == 'zh' %}看做法{% else %}Recipe{% endif %}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
                         </div>
                     </div>
                     {% endfor %}

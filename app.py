@@ -263,6 +263,48 @@ def cleanup_past_plans():
     conn.close()
 
 
+def _guess_dish_category(name_zh: str) -> str:
+    """Cheap offline guess from keywords. Returns '' if unsure."""
+    name = name_zh or ""
+    if "汤" in name:
+        return "汤"
+    if any(k in name for k in ["饭", "面", "粥", "馒头", "包子", "饺", "饼", "年糕", "粉"]):
+        return "主食"
+    if any(k in name for k in ["肉", "鸡", "鸭", "鱼", "虾", "蟹", "牛", "猪", "排骨", "蛋", "肠"]):
+        return "荤菜"
+    if any(k in name for k in ["菜", "西兰花", "土豆", "豆腐", "茄", "瓜", "菇", "笋", "萝卜", "豆", "菌"]):
+        return "素菜"
+    return ""
+
+
+def classify_dish(dish_zh: str) -> str:
+    """Pick a category for a dish: preset -> keyword rules -> AI -> 其他."""
+    if dish_zh in PRESET_DISH_CATEGORY:
+        return PRESET_DISH_CATEGORY[dish_zh]
+
+    guess = _guess_dish_category(dish_zh)
+    if guess:
+        return guess
+
+    try:
+        response = client.responses.create(
+            model="gpt-4o-mini",
+            input=(
+                "Classify this Chinese dish into exactly ONE category and reply with only "
+                "that Chinese word: 主食 (staple/rice/noodles), 荤菜 (meat/egg/seafood dish), "
+                "素菜 (vegetable/tofu dish), 汤 (soup), 其他 (other). "
+                f"Dish: {dish_zh}"
+            ),
+        )
+        out = (response.output_text or "").strip()
+        for c in DISH_CATEGORIES:
+            if c in out:
+                return c
+    except Exception:
+        pass
+    return CUSTOM_DISH_CATEGORY
+
+
 def upsert_dish(cur, dish_zh: str) -> str:
     row = cur.execute(
         "SELECT name_en FROM dishes WHERE name_zh = ?",
@@ -273,9 +315,10 @@ def upsert_dish(cur, dish_zh: str) -> str:
         return row["name_en"]
 
     dish_en = translate_to_english(dish_zh)
+    category = classify_dish(dish_zh)
     cur.execute(
-        "INSERT OR IGNORE INTO dishes (name_zh, name_en) VALUES (?, ?)",
-        (dish_zh, dish_en),
+        "INSERT OR IGNORE INTO dishes (name_zh, name_en, category) VALUES (?, ?, ?)",
+        (dish_zh, dish_en, category),
     )
     return dish_en
 
@@ -829,6 +872,23 @@ def set_dish_category():
         conn.commit()
         conn.close()
     return redirect(url_for("dishes_page", search=search_query) + "#manage")
+
+
+@app.route("/auto_categorize_dishes", methods=["POST"])
+def auto_categorize_dishes():
+    conn = get_conn()
+    cur = conn.cursor()
+    rows = cur.execute(
+        "SELECT id, name_zh FROM dishes WHERE category = ? OR category IS NULL",
+        (CUSTOM_DISH_CATEGORY,),
+    ).fetchall()
+    for row in rows:
+        category = classify_dish(row["name_zh"])
+        if category != CUSTOM_DISH_CATEGORY:
+            cur.execute("UPDATE dishes SET category = ? WHERE id = ?", (category, row["id"]))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("dishes_page") + "#manage")
 
 
 @app.route("/delete_dish", methods=["POST"])

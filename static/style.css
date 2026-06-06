@@ -184,6 +184,20 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 .meal-body .dishes span { display: inline-block; margin-right: 12px; }
 .empty { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
 
+/* dish list with per-dish recipe link (helper dashboard) */
+.dish-lines { list-style: none; padding: 0; margin: 8px 0 0; }
+.dish-lines li {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 9px 0; border-top: 1px solid var(--line);
+}
+.dish-lines li:first-child { border-top: none; }
+.dish-lines .d-name { font-size: 16.5px; }
+.recipe-link {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
+    text-decoration: none; color: var(--accent-ink); background: var(--accent-tint);
+    font-size: 13px; font-weight: 600; padding: 6px 11px; border-radius: 999px; white-space: nowrap;
+}
+
 /* compact day block */
 .day-block { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
 .day-block:first-child { border-top: none; padding-top: 0; margin-top: 0; }

@@ -28,6 +28,10 @@
             <div class="card-head">{{ ic.icon("list", 20) }}<h2>管理菜品</h2></div>
             <p class="section-hint">可以给每道菜选分类，或删除（删除会同时清掉它在所有菜单里的记录）。</p>
 
+            <form action="/auto_categorize_dishes" method="post" style="margin-bottom:12px;">
+                <button class="btn-ghost btn-sm" type="submit">{{ ic.icon("sparkles", 15) }} 让 AI 自动归类「其他」里的菜</button>
+            </form>
+
             <div class="searchbox">
                 <span class="s-ic">{{ ic.icon("search", 17) }}</span>
                 <input type="text" class="js-filter" data-scope="#dish-manage" placeholder="搜索菜名…">
