@@ -222,6 +222,7 @@ def init_db():
     """)
 
     ensure_column_exists(conn, "planned_orders", "meal_time", "TEXT")
+    ensure_column_exists(conn, "dishes", "order_count", "INTEGER DEFAULT 0")
 
     for dish_zh in PRESET_DISHES_ZH:
         dish_en = translate_to_english(dish_zh)
@@ -404,6 +405,8 @@ def save_meal(meal_date: str, meal_type_zh: str, selected_dishes_zh: list[str], 
             (meal_date, meal_type_zh, meal_type_en, dish_name_zh, dish_name_en, meal_time)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (meal_date, meal_type_zh, meal_type_en, dish_zh, dish_en, meal_time or None))
+        # bump preference counter (survives daily cleanup of past plans)
+        cur.execute("UPDATE dishes SET order_count = order_count + 1 WHERE name_zh = ?", (dish_zh,))
 
     conn.commit()
     conn.close()
@@ -472,9 +475,13 @@ def delete_fridge_item(item_id: str):
 
 
 def get_recent_meal_names(days: int = 10):
-    """Distinct dish names planned in the recent window, for AI variety."""
+    """Distinct dish names currently planned (today + upcoming), for AI variety.
+
+    Note: past plans are cleaned up daily, so this is effectively "already on
+    the menu soon" — used to avoid recommending the same thing again.
+    """
     start = (today_local() - timedelta(days=days)).isoformat()
-    end = today_local().isoformat()
+    end = (today_local() + timedelta(days=days)).isoformat()
     conn = get_conn()
     rows = conn.execute(
         "SELECT DISTINCT dish_name_zh FROM planned_orders WHERE meal_date >= ? AND meal_date <= ?",
@@ -482,6 +489,17 @@ def get_recent_meal_names(days: int = 10):
     ).fetchall()
     conn.close()
     return [row["dish_name_zh"] for row in rows]
+
+
+def get_favorite_dishes(limit: int = 8):
+    """Most-ordered dishes — a lightweight taste/preference signal."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT name_zh FROM dishes WHERE order_count > 0 ORDER BY order_count DESC, id ASC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [row["name_zh"] for row in rows]
 
 
 def _parse_ai_json(raw_text: str):
@@ -502,10 +520,14 @@ def _parse_ai_json(raw_text: str):
 
 
 def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
-    """Ask the model for meal ideas from current fridge inventory.
+    """Ask the model for meal ideas.
 
-    Returns {"suggestions": [{"dishes": [...], "reason": str}], "to_buy": [...]}
-    or {"error": str} on failure.
+    Uses what's in the fridge when marked, the family's most-ordered dishes
+    (taste preference), and gently balances nutrition. Works even when the
+    fridge isn't marked yet — it falls back to favorites + home cooking.
+
+    Returns {"suggestions": [{"dishes": [...], "reason": str}], "to_buy": [...],
+    "note": str} or {"error": str} on failure.
     """
     if meal_type_zh not in MEAL_TYPES:
         return {"error": "invalid meal type"}
@@ -513,23 +535,37 @@ def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
     rows = get_fridge_items()
     have = [r["name_zh"] for r in rows if r["status"] == "有"]
     low = [r["name_zh"] for r in rows if r["status"] == "不多"]
+    favorites = get_favorite_dishes()
     recent = get_recent_meal_names()
+    has_stock = bool(have or low)
 
-    if not have and not low:
-        return {"error": "empty_fridge"}
+    note = ""
+    if not has_stock:
+        note = ("冰箱还没标记，这次按家里常点的菜和家常搭配来推荐。"
+                if lang == "zh" else
+                "Fridge not marked yet — suggesting from family favorites and balanced home cooking.")
 
     out_lang = "Chinese (Simplified)" if lang == "zh" else "English"
+    stock_rule = (
+        "Build the dishes mainly from what is in stock; staples like rice/oil/salt may be assumed."
+        if has_stock else
+        "The fridge stock is unknown, so suggest easy everyday dishes that fit the family's tastes."
+    )
     prompt = (
-        "You are a home cooking assistant for a Chinese family. "
-        "Suggest 2-3 simple home-style meal combinations for the given meal. "
-        "Only use ingredients that are in stock; staples like rice/oil/salt may be assumed. "
-        "Avoid repeating recently eaten dishes when reasonable. "
-        "Also list any common ingredients that are out of stock or low and worth buying for your suggestions.\n\n"
+        "You are a thoughtful home cooking assistant for a Chinese family. "
+        "Suggest 2-3 simple, realistic home-style meal combinations for the given meal. "
+        f"{stock_rule} "
+        "Lean toward the family's favorite dishes/flavors, but keep each combo reasonably "
+        "balanced and healthy (include a vegetable, avoid making every dish fried or heavy). "
+        "Avoid repeating dishes that are already on the menu soon. "
+        "List any common ingredients worth buying for your suggestions (especially if low or out of stock).\n\n"
         f"Meal: {MEAL_TYPE_EN[meal_type_zh]} ({meal_type_zh})\n"
-        f"In stock (有): {', '.join(have) or 'none'}\n"
+        f"In stock (有): {', '.join(have) or 'unknown'}\n"
         f"Running low (不多): {', '.join(low) or 'none'}\n"
-        f"Recently eaten (avoid repeating): {', '.join(recent) or 'none'}\n\n"
-        f"Write all dish names, reasons and shopping items in {out_lang}.\n"
+        f"Family favorites (most ordered): {', '.join(favorites) or 'none yet'}\n"
+        f"Already on the menu soon (avoid repeating): {', '.join(recent) or 'none'}\n\n"
+        f"Write all dish names, reasons and shopping items in {out_lang}. "
+        "Keep each reason to a short phrase.\n"
         "Reply with ONLY valid JSON in this exact shape, no markdown:\n"
         '{"suggestions": [{"dishes": ["dish1", "dish2"], "reason": "short reason"}], '
         '"to_buy": ["item1", "item2"]}'
@@ -550,12 +586,17 @@ def get_ai_recommendation(meal_type_zh: str, lang: str = "zh"):
         if dishes:
             suggestions.append({"dishes": dishes, "reason": s.get("reason", "")})
 
-    return {"suggestions": suggestions, "to_buy": data.get("to_buy", [])}
+    return {"suggestions": suggestions, "to_buy": data.get("to_buy", []), "note": note}
 
 
 def _normalize_lang(raw):
     lang = (raw or "zh").strip().lower()
     return lang if lang in ("zh", "en") else "zh"
+
+
+def _normalize_side(raw):
+    side = (raw or "cook").strip().lower()
+    return side if side in ("mom", "cook") else "cook"
 
 
 # ===== Landing / role picker =====
@@ -762,12 +803,13 @@ def dashboard():
 
 # ===== Fridge (shared inventory, both sides) =====
 
-def render_fridge(lang):
+def render_fridge(lang, side):
     rows = get_fridge_items()
     fridge_groups = build_fridge_groups(rows, lang=lang)
     return render_template(
         "fridge.html",
         lang=lang,
+        side=side,
         fridge_groups=fridge_groups,
         statuses=FRIDGE_STATUSES,
         status_en=FRIDGE_STATUS_EN,
@@ -776,34 +818,38 @@ def render_fridge(lang):
 
 @app.route("/fridge", methods=["GET"])
 def fridge():
-    lang = _normalize_lang(request.args.get("lang"))
-    return render_fridge(lang)
+    side = _normalize_side(request.args.get("side"))
+    lang = "zh" if side == "mom" else _normalize_lang(request.args.get("lang"))
+    return render_fridge(lang, side)
 
 
 @app.route("/fridge_update", methods=["POST"])
 def fridge_update():
+    side = _normalize_side(request.form.get("side"))
     lang = _normalize_lang(request.form.get("lang"))
     item_id = request.form.get("item_id", "").strip()
     status = request.form.get("status", "").strip()
     if item_id and status:
         set_fridge_status(item_id, status)
-    return redirect(url_for("fridge", lang=lang) + "#fridge-list")
+    return redirect(url_for("fridge", lang=lang, side=side) + "#fridge-list")
 
 
 @app.route("/fridge_add", methods=["POST"])
 def fridge_add():
+    side = _normalize_side(request.form.get("side"))
     lang = _normalize_lang(request.form.get("lang"))
     add_fridge_items(request.form.get("new_ingredient", "").strip())
-    return redirect(url_for("fridge", lang=lang) + "#fridge-list")
+    return redirect(url_for("fridge", lang=lang, side=side) + "#fridge-list")
 
 
 @app.route("/fridge_delete", methods=["POST"])
 def fridge_delete():
+    side = _normalize_side(request.form.get("side"))
     lang = _normalize_lang(request.form.get("lang"))
     item_id = request.form.get("item_id", "").strip()
     if item_id:
         delete_fridge_item(item_id)
-    return redirect(url_for("fridge", lang=lang) + "#fridge-list")
+    return redirect(url_for("fridge", lang=lang, side=side) + "#fridge-list")
 
 
 init_db()

@@ -6,11 +6,13 @@
     <title>{% if lang == 'zh' %}冰箱库存{% else %}Fridge Inventory{% endif %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body class="role-cook">
+<body class="{{ 'role-mom' if side == 'mom' else 'role-cook' }}">
 {% import "_icons.html" as ic %}
+{% set is_mom = (side == 'mom') %}
+{% set back_href = '/order' if is_mom else '/dashboard?lang=' ~ lang %}
 {% set t = {
-    'title': '冰箱库存' if lang == 'zh' else 'Fridge',
     'home': '首页' if lang == 'zh' else 'Home',
+    'back': '返回' if lang == 'zh' else 'Back',
     'today': '今天做什么' if lang == 'zh' else 'Today',
     'fridge': '冰箱库存' if lang == 'zh' else 'Fridge',
     'inventory': '现有库存' if lang == 'zh' else 'Current Inventory',
@@ -25,15 +27,23 @@
 
     <div class="appbar">
         <div class="appbar-inner">
-            <span class="brand"><span class="badge">{{ ic.icon("fridge", 18) }}</span>{{ t['title'] }}</span>
+            <a class="home-link" href="{{ back_href }}">{{ ic.icon("arrow-left", 16) }} {{ t['back'] }}</a>
+            <span class="brand"><span class="badge">{{ ic.icon("fridge", 18) }}</span>{{ t['fridge'] }}</span>
             <a class="home-link" href="/">{{ ic.icon("home", 16) }} {{ t['home'] }}</a>
         </div>
     </div>
 
     <nav class="tabnav">
-        <a href="/dashboard?lang={{ lang }}">{{ ic.icon("bowl", 16) }} {{ t['today'] }}</a>
-        <a class="active" href="/fridge?lang={{ lang }}">{{ ic.icon("fridge", 16) }} {{ t['fridge'] }}</a>
-        <a class="lang" href="/fridge?lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
+        {% if is_mom %}
+            <a href="/order">{{ ic.icon("order", 16) }} 点餐</a>
+            <a href="/plans">{{ ic.icon("calendar", 16) }} 未来菜单</a>
+            <a class="active" href="/fridge?side=mom">{{ ic.icon("fridge", 16) }} 冰箱</a>
+            <a href="/dishes">{{ ic.icon("list", 16) }} 管理菜品</a>
+        {% else %}
+            <a href="/dashboard?lang={{ lang }}">{{ ic.icon("bowl", 16) }} {{ t['today'] }}</a>
+            <a class="active" href="/fridge?side=cook&lang={{ lang }}">{{ ic.icon("fridge", 16) }} {{ t['fridge'] }}</a>
+            <a class="lang" href="/fridge?side=cook&lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
+        {% endif %}
     </nav>
 
     <div class="container">
@@ -53,6 +63,7 @@
                 <div class="seg">
                     {% for st in statuses %}
                     <form action="/fridge_update" method="post">
+                        <input type="hidden" name="side" value="{{ side }}">
                         <input type="hidden" name="lang" value="{{ lang }}">
                         <input type="hidden" name="item_id" value="{{ item['id'] }}">
                         <input type="hidden" name="status" value="{{ st }}">
@@ -63,6 +74,7 @@
                     </form>
                     {% endfor %}
                     <form action="/fridge_delete" method="post" onsubmit="return confirm('{{ t['del_confirm'] }}');">
+                        <input type="hidden" name="side" value="{{ side }}">
                         <input type="hidden" name="lang" value="{{ lang }}">
                         <input type="hidden" name="item_id" value="{{ item['id'] }}">
                         <button class="row-del" type="submit">{{ ic.icon("x", 17) }}</button>
@@ -76,6 +88,7 @@
         <div class="card">
             <div class="card-head">{{ ic.icon("plus", 20) }}<h2>{{ t['add'] }}</h2></div>
             <form action="/fridge_add" method="post">
+                <input type="hidden" name="side" value="{{ side }}">
                 <input type="hidden" name="lang" value="{{ lang }}">
                 <input type="text" name="new_ingredient" placeholder="{{ '例如：青椒 / 玉米' if lang == 'zh' else 'e.g. green pepper / corn' }}">
                 <p class="hint">{{ t['add_hint'] }}</p>

@@ -20,7 +20,7 @@
 
     <nav class="tabnav">
         <a class="active" href="/dashboard?lang={{ lang }}">{{ ic.icon("bowl", 16) }} {% if lang == 'zh' %}今天做什么{% else %}Today{% endif %}</a>
-        <a href="/fridge?lang={{ lang }}">{{ ic.icon("fridge", 16) }} {% if lang == 'zh' %}冰箱库存{% else %}Fridge{% endif %}</a>
+        <a href="/fridge?side=cook&lang={{ lang }}">{{ ic.icon("fridge", 16) }} {% if lang == 'zh' %}冰箱库存{% else %}Fridge{% endif %}</a>
         <a class="lang" href="/dashboard?lang={{ 'en' if lang == 'zh' else 'zh' }}">{% if lang == 'zh' %}English{% else %}中文{% endif %}</a>
     </nav>
 

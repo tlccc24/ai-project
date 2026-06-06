@@ -20,7 +20,7 @@
     <nav class="tabnav">
         <a class="active" href="/order">{{ ic.icon("order", 16) }} 点餐</a>
         <a href="/plans">{{ ic.icon("calendar", 16) }} 未来菜单</a>
-        <a href="/fridge?lang=zh">{{ ic.icon("fridge", 16) }} 冰箱</a>
+        <a href="/fridge?side=mom">{{ ic.icon("fridge", 16) }} 冰箱</a>
         <a href="/dishes">{{ ic.icon("list", 16) }} 管理菜品</a>
     </nav>
 
@@ -41,7 +41,7 @@
                         {% for x in fridge_low %}<span class="chip chip-low">{{ x }} · 不多</span>{% endfor %}
                     </div>
                 {% else %}
-                    <p class="hint">还没标记。<a href="/fridge?lang=zh">去更新冰箱 →</a></p>
+                    <p class="hint">还没标记也没关系，AI 会按常点的菜来推荐。<a href="/fridge?side=mom">去更新冰箱 →</a></p>
                 {% endif %}
             </div>
 
@@ -64,6 +64,7 @@
                     <p class="alert">AI 暂时无法连接，请稍后再试。</p>
                 {% elif recommendation.get('suggestions') %}
                     <div style="margin-top:14px;">
+                        {% if recommendation.get('note') %}<p class="hint" style="margin-bottom:10px;">{{ recommendation['note'] }}</p>{% endif %}
                         {% for s in recommendation['suggestions'] %}
                         <div class="suggestion">
                             <p class="dishes">{% for d in s['dishes'] %}<span>{{ d }}</span>{% endfor %}</p>
