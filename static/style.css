@@ -184,6 +184,14 @@ input[type="checkbox"] { width: 19px; height: 19px; accent-color: var(--accent);
 .meal-body .dishes span { display: inline-block; margin-right: 12px; }
 .empty { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
 
+/* today's menu — dishes with per-dish remove */
+.meal-dishes { list-style: none; padding: 0; margin: 6px 0 0; }
+.meal-dishes .md-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 6px 0; font-size: 16.5px;
+}
+.meal-dishes .md-empty { color: var(--muted); font-size: 14px; padding: 4px 0; list-style: none; }
+
 /* dish list with per-dish recipe link (helper dashboard) */
 .dish-lines { list-style: none; padding: 0; margin: 8px 0 0; }
 .dish-lines li {

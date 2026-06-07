@@ -144,7 +144,7 @@
         </div>
 
         <!-- Today's menu, compact -->
-        <div class="card" id="today-menu">
+        <div class="card" id="today-menu" data-today="{{ today_str }}">
             <div class="card-head">
                 {{ ic.icon("bowl", 20) }}<h2>今天已点</h2>
                 <span class="spacer"></span>
@@ -158,11 +158,20 @@
                     {% if today_meals[meal_type]["meal_time"] %}
                         <span class="mt-time">{{ ic.icon("clock", 13) }} {{ today_meals[meal_type]["meal_time"] }}</span>
                     {% endif %}
-                    {% if today_meals[meal_type]["dishes"] %}
-                        <p class="dishes">{% for dish in today_meals[meal_type]["dishes"] %}<span>{{ dish }}</span>{% endfor %}</p>
-                    {% else %}
-                        <p class="empty">未点菜</p>
-                    {% endif %}
+                    <ul class="meal-dishes" data-today-meal="{{ meal_type }}">
+                        {% for dish in today_meals[meal_type]["dishes"] %}
+                        <li class="md-item">
+                            <span>{{ dish }}</span>
+                            <form class="js-remove-dish" action="/remove_meal_dish" method="post">
+                                <input type="hidden" name="meal_date" value="{{ today_str }}">
+                                <input type="hidden" name="meal_type" value="{{ meal_type }}">
+                                <input type="hidden" name="dish" value="{{ dish }}">
+                                <button class="row-del" type="submit">{{ ic.icon("x", 15) }}</button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                        <li class="md-empty"{% if today_meals[meal_type]["dishes"] %} style="display:none"{% endif %}>未点菜</li>
+                    </ul>
                 </div>
             </div>
             {% endfor %}

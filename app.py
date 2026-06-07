@@ -131,6 +131,15 @@ PRESET_DISH_CATEGORY = {
     "青菜": "素菜", "番茄炒蛋": "素菜",
     "汤": "汤", "排骨汤": "汤",
 }
+PRESET_DISH_INGREDIENTS = {
+    "白饭": "米", "粥": "米", "面": "面条",
+    "鸡肉": "鸡肉", "鱼": "鱼", "蒸鱼": "鱼",
+    "青菜": "青菜", "番茄炒蛋": "番茄,鸡蛋",
+    "排骨汤": "排骨",
+}
+
+# Basic seasonings/staples we never put on the shopping list.
+SHOPPING_STAPLES = {"盐", "油", "食用油", "酱油", "生抽", "老抽", "糖", "醋", "料酒", "水", "味精", "蚝油"}
 
 
 def now_local():
@@ -249,12 +258,14 @@ def init_db():
     ensure_column_exists(conn, "dishes", "category", "TEXT DEFAULT '其他'")
     ensure_column_exists(conn, "dishes", "ref_link", "TEXT")
     ensure_column_exists(conn, "dishes", "ref_image", "TEXT")
+    ensure_column_exists(conn, "dishes", "ingredients", "TEXT")
 
     for dish_zh in PRESET_DISHES_ZH:
         dish_en = translate_to_english(dish_zh)
         cur.execute(
-            "INSERT OR IGNORE INTO dishes (name_zh, name_en, category) VALUES (?, ?, ?)",
-            (dish_zh, dish_en, PRESET_DISH_CATEGORY.get(dish_zh, CUSTOM_DISH_CATEGORY)),
+            "INSERT OR IGNORE INTO dishes (name_zh, name_en, category, ingredients) VALUES (?, ?, ?, ?)",
+            (dish_zh, dish_en, PRESET_DISH_CATEGORY.get(dish_zh, CUSTOM_DISH_CATEGORY),
+             PRESET_DISH_INGREDIENTS.get(dish_zh)),
         )
 
     for category, ingredients in PRESET_INGREDIENTS.items():
@@ -321,6 +332,29 @@ def classify_dish(dish_zh: str) -> str:
     return CUSTOM_DISH_CATEGORY
 
 
+def get_dish_ingredients(dish_zh: str) -> str:
+    """Main ingredients of a dish as a comma-separated zh string.
+    Preset map first, then AI. Returns '' on failure."""
+    if dish_zh in PRESET_DISH_INGREDIENTS:
+        return PRESET_DISH_INGREDIENTS[dish_zh]
+    try:
+        response = client.responses.create(
+            model="gpt-4o-mini",
+            input=(
+                "List ONLY the 1-4 main ingredients needed to cook this Chinese dish "
+                "(skip basic seasonings like salt, oil, soy sauce, sugar). "
+                "Reply with just the ingredient names in Simplified Chinese, comma-separated, nothing else. "
+                f"Dish: {dish_zh}"
+            ),
+        )
+        text = (response.output_text or "").strip()
+        parts = [p.strip() for p in text.replace("，", ",").replace("、", ",").split(",")]
+        parts = [p for p in parts if p and len(p) <= 8][:5]
+        return ",".join(parts)
+    except Exception:
+        return ""
+
+
 def upsert_dish(cur, dish_zh: str) -> str:
     row = cur.execute(
         "SELECT name_en FROM dishes WHERE name_zh = ?",
@@ -332,9 +366,10 @@ def upsert_dish(cur, dish_zh: str) -> str:
 
     dish_en = translate_to_english(dish_zh)
     category = classify_dish(dish_zh)
+    ingredients = get_dish_ingredients(dish_zh)
     cur.execute(
-        "INSERT OR IGNORE INTO dishes (name_zh, name_en, category) VALUES (?, ?, ?)",
-        (dish_zh, dish_en, category),
+        "INSERT OR IGNORE INTO dishes (name_zh, name_en, category, ingredients) VALUES (?, ?, ?, ?)",
+        (dish_zh, dish_en, category, ingredients or None),
     )
     return dish_en
 
@@ -551,6 +586,13 @@ def append_dishes_to_meal(meal_date: str, meal_type_zh: str, dishes_zh: list[str
         cur.execute("UPDATE dishes SET order_count = order_count + 1 WHERE name_zh = ?", (dish_zh,))
         existing.add(dish_zh)
 
+    # if a time was given, apply it to the whole meal (existing rows included)
+    if meal_time:
+        cur.execute(
+            "UPDATE planned_orders SET meal_time = ? WHERE meal_date = ? AND meal_type_zh = ?",
+            (meal_time, meal_date, meal_type_zh),
+        )
+
     conn.commit()
     conn.close()
 
@@ -724,6 +766,59 @@ def generate_shopping_from_menu():
     return True
 
 
+def fridge_available_names():
+    rows = get_fridge_items()
+    return [r["name_zh"] for r in rows if r["status"] in ("有", "不多")]
+
+
+def sync_shopping_from_plans():
+    """For every upcoming planned dish, add any main ingredient the fridge lacks
+    to the shopping list. Deterministic (no AI here); ingredients are looked up
+    from the dishes table and lazily filled in via AI the first time a dish is seen."""
+    planned = get_upcoming_dish_names()
+    if not planned:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor()
+    placeholders = ",".join("?" * len(planned))
+    rows = cur.execute(
+        f"SELECT id, name_zh, ingredients FROM dishes WHERE name_zh IN ({placeholders})",
+        planned,
+    ).fetchall()
+
+    # lazily backfill ingredients for dishes that don't have them yet
+    dish_ingredients = []
+    for r in rows:
+        ing = r["ingredients"]
+        if ing is None or ing == "":
+            ing = get_dish_ingredients(r["name_zh"])
+            cur.execute("UPDATE dishes SET ingredients = ? WHERE id = ?", (ing or None, r["id"]))
+        dish_ingredients.append(ing or "")
+    conn.commit()
+    conn.close()
+
+    avail = fridge_available_names()
+
+    def available(ing):
+        return any(ing == a or ing in a or a in ing for a in avail)
+
+    needed = []
+    for ing_str in dish_ingredients:
+        for ing in ing_str.split(","):
+            ing = ing.strip()
+            if not ing or ing in SHOPPING_STAPLES or available(ing) or ing in needed:
+                continue
+            needed.append(ing)
+
+    if needed:
+        conn = get_conn()
+        for item in needed:
+            conn.execute("INSERT OR IGNORE INTO shopping_list (item) VALUES (?)", (item,))
+        conn.commit()
+        conn.close()
+
+
 def _parse_ai_json(raw_text: str):
     """Strip markdown fences and parse the model's JSON reply."""
     text = (raw_text or "").strip()
@@ -889,11 +984,37 @@ def today_order():
     meal_date = request.form.get("meal_date", "").strip()
     meal_type_zh = request.form.get("meal_type", "").strip()
     selected_dishes_zh = request.form.getlist("today_dishes")
-    custom_dish_raw = request.form.get("today_custom_dish", "").strip()
+    custom_dishes = split_custom_dishes(request.form.get("today_custom_dish", "").strip())
     meal_time = request.form.get("meal_time", "").strip()
 
-    save_meal(meal_date, meal_type_zh, selected_dishes_zh, custom_dish_raw, meal_time)
-    return redirect(url_for("order") + "#order-section")
+    dishes = []
+    for d in list(selected_dishes_zh) + custom_dishes:
+        d = d.strip()
+        if d and d not in dishes:
+            dishes.append(d)
+
+    # append (don't overwrite) so manual orders and AI-added dishes coexist
+    append_dishes_to_meal(meal_date, meal_type_zh, dishes, meal_time)
+    sync_shopping_from_plans()
+    return redirect(url_for("order") + "#today-menu")
+
+
+@app.route("/remove_meal_dish", methods=["POST"])
+def remove_meal_dish():
+    meal_date = request.form.get("meal_date", "").strip()
+    meal_type_zh = request.form.get("meal_type", "").strip()
+    dish = request.form.get("dish", "").strip()
+    if meal_date and meal_type_zh and dish:
+        conn = get_conn()
+        conn.execute(
+            "DELETE FROM planned_orders WHERE meal_date = ? AND meal_type_zh = ? AND dish_name_zh = ?",
+            (meal_date, meal_type_zh, dish),
+        )
+        conn.commit()
+        conn.close()
+    if _is_xhr():
+        return ("", 204)
+    return redirect(url_for("order") + "#today-menu")
 
 
 @app.route("/recommend", methods=["POST"])
@@ -909,6 +1030,7 @@ def recommend_to_plan():
     dishes_raw = request.form.get("dishes", "").strip()
     selected = split_custom_dishes(dishes_raw)
     append_dishes_to_meal(today_local().isoformat(), meal_type_zh, selected)
+    sync_shopping_from_plans()
     if _is_xhr():
         return ("", 204)
     return redirect(url_for("order") + "#today-menu")
@@ -970,6 +1092,7 @@ def plan_order():
     meal_time = request.form.get("meal_time", "").strip()
 
     save_meal(meal_date, meal_type_zh, selected_dishes_zh, custom_dish_raw, meal_time)
+    sync_shopping_from_plans()
     return redirect(url_for("plans") + "#plans-list")
 
 
