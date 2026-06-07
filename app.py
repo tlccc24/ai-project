@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import json
 from pathlib import Path
@@ -17,8 +18,13 @@ except ImportError:
     pass
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "dev-insecure-secret-change-me")
+# keep families logged in on a device for a long time (auto-login)
+app.permanent_session_lifetime = timedelta(days=365)
 
 DB_PATH = Path(os.getenv("DB_PATH", "orders.db"))
+# Central accounts database (one row per family).
+AUTH_DB_PATH = DB_PATH.parent / "auth.db"
 # Uploaded reference photos live next to the DB (on Render: the persistent disk).
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(DB_PATH.parent / "uploads")))
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic"}
@@ -151,10 +157,89 @@ def today_local():
     return now_local().date()
 
 
-def get_conn():
-    conn = sqlite3.connect(DB_PATH, timeout=10)
+def db_path_for(db_name):
+    return DB_PATH.parent / db_name
+
+
+def current_db_path():
+    """The logged-in family's database file (from the session)."""
+    db_name = session.get("db_name")
+    return db_path_for(db_name) if db_name else None
+
+
+def get_conn(db_path=None):
+    path = db_path or current_db_path()
+    conn = sqlite3.connect(path, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# ===== Accounts (central auth db) =====
+
+def get_auth_conn():
+    conn = sqlite3.connect(AUTH_DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_auth_db():
+    conn = get_auth_conn()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            db_name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def find_account(username):
+    conn = get_auth_conn()
+    row = conn.execute("SELECT * FROM accounts WHERE username = ?", (username,)).fetchone()
+    conn.close()
+    return row
+
+
+def create_account(username, password):
+    """Returns (db_name, None) on success or (None, error_message)."""
+    username = (username or "").strip()
+    if len(username) < 2:
+        return None, "用户名至少 2 个字"
+    if len(password or "") < 4:
+        return None, "密码至少 4 位"
+    if find_account(username):
+        return None, "这个用户名已经有人用了"
+
+    conn = get_auth_conn()
+    cur = conn.cursor()
+    count = cur.execute("SELECT COUNT(*) AS c FROM accounts").fetchone()["c"]
+    pw_hash = generate_password_hash(password)
+
+    if count == 0:
+        # the first family inherits the existing data (orders.db)
+        db_name = DB_PATH.name
+        cur.execute(
+            "INSERT INTO accounts (username, password_hash, db_name) VALUES (?, ?, ?)",
+            (username, pw_hash, db_name),
+        )
+    else:
+        cur.execute(
+            "INSERT INTO accounts (username, password_hash, db_name) VALUES (?, ?, ?)",
+            (username, pw_hash, "__pending__"),
+        )
+        new_id = cur.lastrowid
+        db_name = f"family_{new_id}.db"
+        cur.execute("UPDATE accounts SET db_name = ? WHERE id = ?", (db_name, new_id))
+
+    conn.commit()
+    conn.close()
+
+    init_db(db_path_for(db_name))  # create tables + seed presets for this family
+    return db_name, None
 
 
 def ensure_column_exists(conn, table_name, column_name, column_sql):
@@ -210,8 +295,8 @@ def split_custom_dishes(raw_text: str) -> list[str]:
     return result
 
 
-def init_db():
-    conn = get_conn()
+def init_db(db_path):
+    conn = get_conn(db_path)
     cur = conn.cursor()
 
     cur.execute("""
@@ -929,11 +1014,63 @@ def _normalize_side(raw):
     return side if side in ("mom", "cook") else "cook"
 
 
+# ===== Auth =====
+
+PUBLIC_ENDPOINTS = {"login", "register", "static"}
+
+
+@app.before_request
+def require_login():
+    if request.endpoint in PUBLIC_ENDPOINTS or request.endpoint is None:
+        return
+    if not session.get("db_name"):
+        return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        row = find_account(username)
+        if row and check_password_hash(row["password_hash"], password):
+            session.permanent = True
+            session["family"] = row["username"]
+            session["db_name"] = row["db_name"]
+            init_db(db_path_for(row["db_name"]))  # self-heal if the file is missing
+            return redirect(url_for("home"))
+        return render_template("login.html", error="账号或密码不对")
+    if session.get("db_name"):
+        return redirect(url_for("home"))
+    return render_template("login.html")
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        db_name, error = create_account(username, password)
+        if error:
+            return render_template("register.html", error=error)
+        session.permanent = True
+        session["family"] = username
+        session["db_name"] = db_name
+        return redirect(url_for("home"))
+    return render_template("register.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 # ===== Landing / role picker =====
 
 @app.route("/", methods=["GET"])
 def home():
-    return render_template("home.html")
+    return render_template("home.html", family=session.get("family"))
 
 
 # ===== Employer (Mom) side =====
@@ -1158,7 +1295,8 @@ def set_dish_ref():
         ext = os.path.splitext(secure_filename(file.filename))[1].lower()
         if ext in ALLOWED_IMAGE_EXT:
             UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-            fname = f"dish_{dish_id}{ext}"
+            stem = (session.get("db_name") or "family").rsplit(".", 1)[0]
+            fname = f"{stem}_dish_{dish_id}{ext}"
             file.save(str(UPLOAD_DIR / fname))
             cur.execute("UPDATE dishes SET ref_image = ? WHERE id = ?", (fname, dish_id))
 
@@ -1311,8 +1449,8 @@ def fridge_delete():
     return redirect(url_for("fridge", lang=lang, side=side) + "#fridge-list")
 
 
-init_db()
-cleanup_past_plans()
+init_auth_db()
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
