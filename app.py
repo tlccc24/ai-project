@@ -139,7 +139,21 @@ PRESET_DISH_INGREDIENTS = {
 }
 
 # Basic seasonings/staples we never put on the shopping list.
-SHOPPING_STAPLES = {"盐", "油", "食用油", "酱油", "生抽", "老抽", "糖", "醋", "料酒", "水", "味精", "蚝油"}
+SHOPPING_STAPLES = {"盐", "油", "食用油", "酱油", "生抽", "老抽", "糖", "醋", "料酒",
+                    "水", "味精", "蚝油", "葱", "姜", "蒜", "葱姜蒜", "淀粉"}
+
+# Map specific cuts/parts to the generic ingredient the fridge usually lists,
+# so "五花肉" counts as available when the fridge has "猪肉".
+INGREDIENT_ALIASES = {
+    "五花肉": "猪肉", "里脊": "猪肉", "里脊肉": "猪肉", "瘦肉": "猪肉",
+    "排骨": "猪肉", "猪排": "猪肉", "猪蹄": "猪肉", "肉末": "猪肉", "肉馅": "猪肉", "猪肉末": "猪肉",
+    "鸡胸": "鸡肉", "鸡胸肉": "鸡肉", "鸡腿": "鸡肉", "鸡翅": "鸡肉", "鸡腿肉": "鸡肉",
+    "牛腩": "牛肉", "牛排": "牛肉", "牛肉末": "牛肉",
+}
+
+
+def normalize_ingredient(name: str) -> str:
+    return INGREDIENT_ALIASES.get(name.strip(), name.strip())
 
 
 def now_local():
@@ -799,9 +813,14 @@ def sync_shopping_from_plans():
     conn.close()
 
     avail = fridge_available_names()
+    avail_norm = [normalize_ingredient(a) for a in avail]
 
     def available(ing):
-        return any(ing == a or ing in a or a in ing for a in avail)
+        gi = normalize_ingredient(ing)
+        for a, ga in zip(avail, avail_norm):
+            if gi == ga or ing == a or ing in a or a in ing or gi in ga or ga in gi:
+                return True
+        return False
 
     needed = []
     for ing_str in dish_ingredients:
